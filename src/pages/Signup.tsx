@@ -9,6 +9,7 @@ import { useDreamStore } from "@/lib/store";
 export default function Signup() {
   const navigate = useNavigate();
   const login = useDreamStore((state) => state.login);
+  const resetToZeroState = useDreamStore((state) => state.resetToZeroState);
   
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -21,20 +22,31 @@ export default function Signup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create mock user
+    // Create mock user with full profile - ZERO STATE
     login({
       id: Math.random().toString(36).substr(2, 9),
       username: formData.username,
       email: formData.email,
       university: formData.university,
       createdAt: new Date(),
+      followers: 0,
+      following: 0,
+      totalViews: 0,
     });
+    
+    // Ensure zero state for new users
+    resetToZeroState();
     
     navigate("/onboarding");
   };
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background px-6 py-8">
+      {/* Beta Badge */}
+      <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
+        <span className="text-xs font-medium text-primary">Beta</span>
+      </div>
+
       {/* Back button */}
       <button
         onClick={() => navigate("/")}
