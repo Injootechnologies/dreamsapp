@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronDown, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, ChevronDown, CheckCircle2, AlertCircle, Clock, Search } from "lucide-react";
 import { useDreamStore, nigerianBanks } from "@/lib/store";
 
 type Step = "amount" | "bank" | "account" | "confirm" | "success";
@@ -15,7 +15,10 @@ export default function Withdraw() {
   const [amount, setAmount] = useState("");
   const [bank, setBank] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [showBankList, setShowBankList] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
   
   const availableBalance = useDreamStore((state) => state.availableBalance);
   const requestWithdrawal = useDreamStore((state) => state.requestWithdrawal);
@@ -23,10 +26,28 @@ export default function Withdraw() {
   const amountNum = parseInt(amount) || 0;
   const isValidAmount = amountNum >= 100 && amountNum <= availableBalance;
 
+  // Simulate account name verification
+  const verifyAccount = () => {
+    setIsVerifying(true);
+    setTimeout(() => {
+      // Generate a random Nigerian name for simulation
+      const firstNames = ["Adebayo", "Chioma", "Oluwaseun", "Ngozi", "Emeka", "Aisha", "Tunde", "Blessing"];
+      const lastNames = ["Okonkwo", "Adeyemi", "Ibrahim", "Eze", "Bello", "Okoro", "Adeleke", "Nnamdi"];
+      const randomFirst = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const randomLast = lastNames[Math.floor(Math.random() * lastNames.length)];
+      setAccountName(`${randomFirst} ${randomLast}`);
+      setIsVerifying(false);
+    }, 1500);
+  };
+
   const handleConfirm = () => {
-    requestWithdrawal(amountNum, bank, accountNumber);
+    requestWithdrawal(amountNum, bank, accountNumber, accountName);
     setStep("success");
   };
+
+  const filteredBanks = nigerianBanks.filter(b => 
+    b.toLowerCase().includes(bankSearch.toLowerCase())
+  );
 
   const renderStep = () => {
     switch (step) {
@@ -123,20 +144,36 @@ export default function Withdraw() {
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-elevated max-h-64 overflow-y-auto z-50"
+                  className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-elevated z-50"
                 >
-                  {nigerianBanks.map((bankName) => (
-                    <button
-                      key={bankName}
-                      onClick={() => {
-                        setBank(bankName);
-                        setShowBankList(false);
-                      }}
-                      className="w-full px-4 py-3 text-left text-foreground hover:bg-secondary transition-colors first:rounded-t-xl last:rounded-b-xl"
-                    >
-                      {bankName}
-                    </button>
-                  ))}
+                  {/* Search input */}
+                  <div className="p-3 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Search banks..."
+                        value={bankSearch}
+                        onChange={(e) => setBankSearch(e.target.value)}
+                        className="pl-10 h-10"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {filteredBanks.map((bankName) => (
+                      <button
+                        key={bankName}
+                        onClick={() => {
+                          setBank(bankName);
+                          setShowBankList(false);
+                          setBankSearch("");
+                        }}
+                        className="w-full px-4 py-3 text-left text-foreground hover:bg-secondary transition-colors"
+                      >
+                        {bankName}
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -175,9 +212,42 @@ export default function Withdraw() {
               type="text"
               placeholder="0000000000"
               value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-              className="h-16 text-2xl font-mono tracking-wider text-center mb-6"
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setAccountNumber(value);
+                setAccountName(""); // Reset verification
+                if (value.length === 10) {
+                  verifyAccount();
+                }
+              }}
+              className="h-16 text-2xl font-mono tracking-wider text-center mb-4"
             />
+
+            {/* Account verification */}
+            {accountNumber.length === 10 && (
+              <Card variant="gradient" className="mb-6">
+                <CardContent className="p-4">
+                  {isVerifying ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+                        <Clock className="w-4 h-4 text-primary" />
+                      </div>
+                      <span className="text-muted-foreground">Verifying account...</span>
+                    </div>
+                  ) : accountName ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-4 h-4 text-success" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Account Name</p>
+                        <p className="font-semibold text-foreground">{accountName}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
 
             <div className="mt-auto">
               <Button
@@ -185,7 +255,7 @@ export default function Withdraw() {
                 size="xl"
                 className="w-full"
                 onClick={() => setStep("confirm")}
-                disabled={accountNumber.length !== 10}
+                disabled={accountNumber.length !== 10 || !accountName}
               >
                 Continue
               </Button>
@@ -223,11 +293,15 @@ export default function Withdraw() {
                   <span className="text-muted-foreground">Account</span>
                   <span className="font-mono text-foreground">{accountNumber}</span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Name</span>
+                  <span className="font-medium text-foreground">{accountName}</span>
+                </div>
               </CardContent>
             </Card>
 
             <p className="text-xs text-muted-foreground text-center mb-6">
-              Funds will arrive within 24-48 hours
+              Withdrawal requests require admin approval
             </p>
 
             <div className="mt-auto">
@@ -255,21 +329,26 @@ export default function Withdraw() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="w-24 h-24 rounded-full bg-success/20 flex items-center justify-center mb-6"
+              className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center mb-6"
             >
-              <CheckCircle2 className="w-12 h-12 text-success" />
+              <Clock className="w-12 h-12 text-primary" />
             </motion.div>
 
             <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-              Request Received!
+              Request Submitted!
             </h2>
             <p className="text-muted-foreground text-center mb-2">
               Your withdrawal of{" "}
               <span className="text-primary font-semibold">₦{amountNum.toLocaleString()}</span>{" "}
-              is being processed.
+              is pending admin approval.
             </p>
-            <p className="text-sm text-muted-foreground text-center mb-8">
-              Funds will arrive within 24-48 hours.
+            
+            <div className="px-4 py-2 rounded-full bg-primary/20 border border-primary/50 mb-8">
+              <span className="text-sm font-medium text-primary">Pending Admin Approval</span>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center mb-8">
+              You will be notified once your withdrawal is approved.
             </p>
 
             <Button

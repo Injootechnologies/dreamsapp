@@ -3,7 +3,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Play, Video, Trophy, Heart, Share2, CheckCircle2, Coins } from "lucide-react";
+import { Play, Video, Trophy, Heart, Share2, CheckCircle2, Coins, Sparkles } from "lucide-react";
 import { mockTasks, useDreamStore } from "@/lib/store";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -14,11 +14,20 @@ const iconMap: Record<string, React.ElementType> = {
   share: Share2,
 };
 
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  amount: number;
+  status: 'available' | 'completed';
+  icon: string;
+}
+
 export default function Earn() {
-  const [tasks, setTasks] = useState(mockTasks);
+  const [tasks, setTasks] = useState<Task[]>(mockTasks.map(t => ({ ...t, status: 'available' as const })));
   const addEarning = useDreamStore((state) => state.addEarning);
-  const todayEarnings = useDreamStore((state) => state.todayEarnings);
-  const dailyLimit = useDreamStore((state) => state.dailyLimit);
+  const totalEarned = useDreamStore((state) => state.totalEarned);
+  const availableBalance = useDreamStore((state) => state.availableBalance);
 
   const completeTask = (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
@@ -32,7 +41,7 @@ export default function Earn() {
     );
 
     addEarning({
-      type: "engage",
+      type: "challenge",
       amount: task.amount,
       description: task.title,
     });
@@ -44,19 +53,23 @@ export default function Earn() {
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-            Earn More
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Complete tasks to boost your earnings
-          </p>
-        </motion.div>
+        {/* Beta Badge */}
+        <div className="flex justify-between items-center mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="font-display text-2xl font-bold text-foreground mb-1">
+              Earn More
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Complete tasks to boost your earnings
+            </p>
+          </motion.div>
+          <div className="px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
+            <span className="text-xs font-medium text-primary">Beta Rewards</span>
+          </div>
+        </div>
 
         {/* Stats Card */}
         <motion.div
@@ -72,26 +85,25 @@ export default function Earn() {
                     <Coins className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Today's Earnings</p>
-                    <p className="text-2xl font-bold text-gradient-gold">₦{todayEarnings}</p>
+                    <p className="text-sm text-muted-foreground">Available Balance</p>
+                    <p className="text-2xl font-bold text-gradient-gold">₦{availableBalance.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Daily Limit</p>
-                  <p className="text-lg font-semibold text-foreground">₦{dailyLimit}</p>
+                  <p className="text-xs text-muted-foreground">Total Earned</p>
+                  <p className="text-lg font-semibold text-foreground">₦{totalEarned.toLocaleString()}</p>
                 </div>
               </div>
               
-              {/* Progress bar */}
-              <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(todayEarnings / dailyLimit) * 100}%` }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                  className="h-full bg-gradient-gold rounded-full"
-                />
+              {/* Unlimited beta note */}
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-success/10 border border-success/20">
+                <Sparkles className="w-4 h-4 text-success" />
+                <p className="text-xs text-success">
+                  Unlimited beta rewards! No daily cap during testing.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
+              
+              <p className="text-xs text-muted-foreground mt-3">
                 {completedCount}/{tasks.length} tasks completed
               </p>
             </CardContent>
@@ -147,7 +159,6 @@ export default function Earn() {
                             variant="gold"
                             size="sm"
                             onClick={() => completeTask(task.id)}
-                            disabled={todayEarnings >= dailyLimit}
                           >
                             Start
                           </Button>
@@ -166,10 +177,13 @@ export default function Earn() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
-          className="mt-6 text-center"
+          className="mt-6 p-4 rounded-xl bg-secondary/50 border border-border"
         >
-          <p className="text-sm text-muted-foreground">
-            Complete all tasks to earn up to <span className="text-primary font-semibold">₦{totalPossible}</span> today
+          <p className="text-sm text-muted-foreground text-center">
+            Complete all tasks to earn <span className="text-primary font-semibold">₦{totalPossible}</span>
+          </p>
+          <p className="text-xs text-muted-foreground text-center mt-1">
+            ⚠️ Beta rewards - final earning structure may change
           </p>
         </motion.div>
       </div>
