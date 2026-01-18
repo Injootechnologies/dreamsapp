@@ -1,142 +1,231 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { User, Video, Coins, Settings, LogOut, ChevronRight, Crown } from "lucide-react";
-import { useDreamStore } from "@/lib/store";
+import { Settings, Grid, Heart, Play, Crown, Users } from "lucide-react";
+import { useDreamStore, demoVideos } from "@/lib/store";
+
+type ProfileTab = 'posts' | 'liked';
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  
   const user = useDreamStore((state) => state.user);
   const totalEarned = useDreamStore((state) => state.totalEarned);
+  const userVideos = useDreamStore((state) => state.userVideos);
+  const likedVideos = useDreamStore((state) => state.likedVideos);
   const contentCount = useDreamStore((state) => state.contentCount);
-  const logout = useDreamStore((state) => state.logout);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  // Get liked videos data
+  const likedVideosList = demoVideos.filter(v => likedVideos.has(v.id));
+  
+  // Calculate total views from user's videos
+  const totalViews = userVideos.reduce((acc, v) => acc + v.views, 0);
 
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
+        {/* Header with settings */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => navigate("/settings")}
+            className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+          >
+            <Settings className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
         {/* Profile Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center mb-8"
+          className="flex flex-col items-center mb-6"
         >
           <div className="relative mb-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-gold flex items-center justify-center">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center">
               <span className="text-4xl font-bold text-primary-foreground">
                 {user?.username?.charAt(0).toUpperCase() || "D"}
               </span>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-primary flex items-center justify-center border-4 border-background">
-              <Crown className="w-4 h-4 text-primary-foreground" />
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-success flex items-center justify-center border-4 border-background">
+              <Crown className="w-4 h-4 text-success-foreground" />
             </div>
           </div>
 
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">
             @{user?.username || "dreamer"}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            {user?.university || "Dream$ Creator"}
+          <p className="text-muted-foreground text-sm text-center max-w-[250px]">
+            {user?.bio || "Dream$ Creator"}
           </p>
+          
+          {/* Beta tester badge */}
+          <div className="mt-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
+            <span className="text-xs font-medium text-primary">Beta Tester</span>
+          </div>
         </motion.div>
 
-        {/* Stats */}
+        {/* Stats Row */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 gap-3 mb-6"
+          className="flex justify-center gap-8 mb-6"
+        >
+          <div className="text-center">
+            <p className="text-xl font-bold text-foreground">{user?.followers || 0}</p>
+            <p className="text-xs text-muted-foreground">Followers</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-foreground">{user?.following || 0}</p>
+            <p className="text-xs text-muted-foreground">Following</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">Views</p>
+          </div>
+        </motion.div>
+
+        {/* Earnings Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6"
         >
           <Card variant="earning">
-            <CardContent className="p-4 text-center">
-              <div className="flex justify-center mb-2">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <Coins className="w-5 h-5 text-primary" />
-                </div>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-muted-foreground">Total Earnings</p>
+                <p className="text-2xl font-bold text-gradient-gold">₦{totalEarned.toLocaleString()}</p>
               </div>
-              <p className="text-2xl font-bold text-gradient-gold">₦{totalEarned.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground">Total Earned</p>
-            </CardContent>
-          </Card>
-          
-          <Card variant="gradient">
-            <CardContent className="p-4 text-center">
-              <div className="flex justify-center mb-2">
-                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center">
-                  <Video className="w-5 h-5 text-success" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-foreground">{contentCount}</p>
-              <p className="text-xs text-muted-foreground">Posts Created</p>
+              <Button
+                variant="gold"
+                size="sm"
+                onClick={() => navigate("/wallet")}
+              >
+                View Wallet
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Menu Items */}
+        {/* Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="space-y-2"
+          className="flex border-b border-border mb-4"
         >
-          <Card variant="gradient">
-            <CardContent className="p-0">
-              {[
-                { icon: User, label: "Edit Profile", onClick: () => {} },
-                { icon: Coins, label: "Earning History", onClick: () => navigate("/wallet") },
-                { icon: Settings, label: "Settings", onClick: () => {} },
-              ].map((item, index) => (
-                <button
-                  key={item.label}
-                  onClick={item.onClick}
-                  className={`w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors ${
-                    index > 0 ? "border-t border-border" : ""
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5 text-muted-foreground" />
-                    <span className="font-medium text-foreground">{item.label}</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card variant="default">
-            <CardContent className="p-0">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-between p-4 text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <LogOut className="w-5 h-5" />
-                  <span className="font-medium">Log Out</span>
-                </div>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </CardContent>
-          </Card>
+          <button
+            onClick={() => setActiveTab('posts')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 border-b-2 transition-colors ${
+              activeTab === 'posts'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
+            }`}
+          >
+            <Grid className="w-5 h-5" />
+            <span className="text-sm font-medium">Posts</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('liked')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 border-b-2 transition-colors ${
+              activeTab === 'liked'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
+            }`}
+          >
+            <Heart className="w-5 h-5" />
+            <span className="text-sm font-medium">Liked</span>
+          </button>
         </motion.div>
 
-        {/* App Info */}
+        {/* Content Grid */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-8 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
         >
-          <p className="text-gradient-gold font-display font-bold text-lg mb-1">Dream$</p>
-          <p className="text-xs text-muted-foreground">Version 1.0.0 (MVP)</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            Made with ❤️ in Nigeria
-          </p>
+          {activeTab === 'posts' ? (
+            userVideos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+                  <Play className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-foreground font-medium mb-1">You haven't posted yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Share your first video!</p>
+                <Button
+                  variant="gold"
+                  onClick={() => navigate("/create")}
+                >
+                  Create Video
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1">
+                {userVideos.map((video) => (
+                  <div
+                    key={video.id}
+                    className="aspect-[9/16] bg-secondary rounded-lg overflow-hidden relative"
+                  >
+                    <video
+                      src={video.videoUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                    />
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs">
+                      <Play className="w-3 h-3" />
+                      <span>{video.views.toLocaleString()}</span>
+                    </div>
+                    {!video.isMonetized && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-muted/80 text-[10px] text-muted-foreground">
+                        Not monetized
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            likedVideosList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+                  <Heart className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-foreground font-medium mb-1">No liked videos yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Videos you like will appear here</p>
+                <Button
+                  variant="gold"
+                  onClick={() => navigate("/home")}
+                >
+                  Browse Videos
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1">
+                {likedVideosList.map((video) => (
+                  <div
+                    key={video.id}
+                    className="aspect-[9/16] bg-secondary rounded-lg overflow-hidden relative"
+                  >
+                    <video
+                      src={video.videoUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                    />
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs">
+                      <Play className="w-3 h-3" />
+                      <span>{video.views.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </motion.div>
       </div>
     </MobileLayout>

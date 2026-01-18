@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { Upload, Image, Film, Hash, CheckCircle2 } from "lucide-react";
-import { useDreamStore } from "@/lib/store";
+import { Upload, Film, Hash, CheckCircle2, AlertCircle } from "lucide-react";
+import { useDreamStore, Video } from "@/lib/store";
 
 const categories = [
   "Entertainment",
@@ -20,25 +21,51 @@ const categories = [
   "Sports",
 ];
 
+// Sample video URLs for simulated uploads
+const sampleVideoUrls = [
+  'https://assets.mixkit.co/videos/preview/mixkit-young-woman-looking-at-the-sunset-1094-large.mp4',
+  'https://assets.mixkit.co/videos/preview/mixkit-people-dancing-at-a-party-4637-large.mp4',
+  'https://assets.mixkit.co/videos/preview/mixkit-chef-preparing-a-plate-in-a-kitchen-8402-large.mp4',
+  'https://assets.mixkit.co/videos/preview/mixkit-woman-doing-yoga-at-home-5095-large.mp4',
+];
+
 export default function Create() {
+  const navigate = useNavigate();
   const [caption, setCaption] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isUploaded, setIsUploaded] = useState(false);
   const [isPosted, setIsPosted] = useState(false);
   
-  const incrementContentCount = useDreamStore((state) => state.incrementContentCount);
-  const addEarning = useDreamStore((state) => state.addEarning);
+  const user = useDreamStore((state) => state.user);
+  const uploadVideo = useDreamStore((state) => state.uploadVideo);
 
   const handlePost = () => {
     if (!caption || !selectedCategory) return;
     
+    // Create a new video object
+    const newVideo: Video = {
+      id: `user-${Date.now()}`,
+      creator: user?.username || 'dreamer',
+      creatorId: user?.id || 'user',
+      creatorAvatar: user?.username?.charAt(0).toUpperCase() || 'D',
+      caption: caption,
+      likes: 0,
+      comments: [],
+      saves: 0,
+      shares: 0,
+      views: Math.floor(Math.random() * 100), // Start with some views
+      videoUrl: sampleVideoUrls[Math.floor(Math.random() * sampleVideoUrls.length)],
+      thumbnail: '',
+      category: 'foryou',
+      createdAt: new Date(),
+      isMonetized: false, // User uploads are NOT monetized by default
+      rewardAmount: 0,
+      duration: 15,
+    };
+    
+    uploadVideo(newVideo);
     setIsPosted(true);
-    incrementContentCount();
-    addEarning({
-      type: "create",
-      amount: 50,
-      description: "Created new content",
-    });
+    // NO earnings for posting!
   };
 
   const handleReset = () => {
@@ -74,31 +101,40 @@ export default function Create() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-muted-foreground text-center mb-2"
+            className="text-muted-foreground text-center mb-4"
           >
-            Your content is now live.
+            Your content is now live on Dream$.
           </motion.p>
           
-          <motion.p
+          {/* Not monetized notice */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="text-primary font-semibold text-lg mb-8"
+            className="p-4 rounded-xl bg-secondary border border-border mb-6 max-w-[300px]"
           >
-            +₦50 earned for posting!
-          </motion.p>
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Not Monetized</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Your video is not eligible for viewer rewards. Only selected sponsored content can be monetized.
+                </p>
+              </div>
+            </div>
+          </motion.div>
           
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="text-center"
+            className="flex gap-3"
           >
-            <p className="text-sm text-muted-foreground mb-4">
-              Earnings will reflect based on engagement.
-            </p>
-            <Button variant="gold" onClick={handleReset}>
+            <Button variant="gold-outline" onClick={handleReset}>
               Create Another
+            </Button>
+            <Button variant="gold" onClick={() => navigate("/profile")}>
+              View Profile
             </Button>
           </motion.div>
         </div>
@@ -119,8 +155,22 @@ export default function Create() {
             Create Content
           </h1>
           <p className="text-muted-foreground text-sm">
-            Share your creativity and earn ₦50+
+            Share your creativity with the Dream$ community
           </p>
+        </motion.div>
+
+        {/* Info notice */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="mb-6"
+        >
+          <div className="p-3 rounded-xl bg-secondary/50 border border-border">
+            <p className="text-xs text-muted-foreground">
+              📌 Note: User uploads are not monetized. Only sponsored content from brands can generate viewer rewards.
+            </p>
+          </div>
         </motion.div>
 
         {/* Upload Area */}
@@ -142,20 +192,16 @@ export default function Create() {
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground mb-1">
-                      Upload Content
+                      Upload Video
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Tap to select video or image
+                      Tap to select a video file
                     </p>
                   </div>
                   <div className="flex gap-4 mt-2">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Film className="w-4 h-4" />
-                      <span className="text-xs">Video</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Image className="w-4 h-4" />
-                      <span className="text-xs">Image</span>
+                      <span className="text-xs">MP4, WebM</span>
                     </div>
                   </div>
                 </button>
@@ -164,11 +210,21 @@ export default function Create() {
           ) : (
             <Card variant="gradient">
               <CardContent className="p-4">
-                <div className="aspect-[4/5] rounded-xl bg-secondary flex items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-success/20" />
-                  <div className="relative z-10 text-center">
-                    <Film className="w-12 h-12 text-primary mx-auto mb-2" />
-                    <p className="text-sm text-foreground">Video uploaded</p>
+                <div className="aspect-[9/16] max-h-[300px] rounded-xl bg-secondary flex items-center justify-center relative overflow-hidden">
+                  <video
+                    src={sampleVideoUrls[0]}
+                    className="w-full h-full object-cover"
+                    muted
+                    autoPlay
+                    loop
+                    playsInline
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/50 to-transparent" />
+                  <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-success/80 flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-sm text-white font-medium">Video ready</span>
                   </div>
                 </div>
               </CardContent>
@@ -187,7 +243,7 @@ export default function Create() {
             Caption
           </label>
           <Input
-            placeholder="Write a caption for your post..."
+            placeholder="Write a caption for your video..."
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             className="h-14"
@@ -235,10 +291,10 @@ export default function Create() {
             onClick={handlePost}
             disabled={!isUploaded || !caption || !selectedCategory}
           >
-            Post Content
+            Post Video
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">
-            Earn ₦50 for posting + bonus based on engagement
+            Your video will appear on your profile and in the For You feed
           </p>
         </motion.div>
       </div>

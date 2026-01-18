@@ -3,14 +3,15 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Wallet as WalletIcon, ArrowUpRight, Clock, TrendingUp, ChevronRight } from "lucide-react";
+import { Wallet as WalletIcon, ArrowUpRight, Clock, TrendingUp, Target, AlertCircle } from "lucide-react";
 import { useDreamStore } from "@/lib/store";
 
 export default function Wallet() {
   const navigate = useNavigate();
   const availableBalance = useDreamStore((state) => state.availableBalance);
-  const pendingEarnings = useDreamStore((state) => state.pendingEarnings);
   const totalEarned = useDreamStore((state) => state.totalEarned);
+  const totalWithdrawn = useDreamStore((state) => state.totalWithdrawn);
+  const earningHistory = useDreamStore((state) => state.earningHistory);
   const withdrawalHistory = useDreamStore((state) => state.withdrawalHistory);
 
   return (
@@ -25,6 +26,9 @@ export default function Wallet() {
           <h1 className="font-display text-2xl font-bold text-foreground">
             Wallet
           </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            Earn by watching monetized videos 100%
+          </p>
         </motion.div>
 
         {/* Main Balance Card */}
@@ -58,21 +62,21 @@ export default function Wallet() {
                   size="lg"
                   className="w-full"
                   onClick={() => navigate("/withdraw")}
+                  disabled={availableBalance < 100}
                 >
                   <ArrowUpRight className="w-5 h-5" />
                   Withdraw Funds
                 </Button>
+                
+                {availableBalance < 100 && availableBalance > 0 && (
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    Minimum withdrawal: ₦100
+                  </p>
+                )}
               </div>
 
               {/* Stats row */}
               <div className="grid grid-cols-2 divide-x divide-border border-t border-border bg-secondary/30">
-                <div className="p-4 text-center">
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-xs">Pending</span>
-                  </div>
-                  <p className="text-lg font-bold text-foreground">₦{pendingEarnings.toLocaleString()}</p>
-                </div>
                 <div className="p-4 text-center">
                   <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
                     <TrendingUp className="w-4 h-4" />
@@ -80,47 +84,98 @@ export default function Wallet() {
                   </div>
                   <p className="text-lg font-bold text-foreground">₦{totalEarned.toLocaleString()}</p>
                 </div>
+                <div className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
+                    <ArrowUpRight className="w-4 h-4" />
+                    <span className="text-xs">Withdrawn</span>
+                  </div>
+                  <p className="text-lg font-bold text-foreground">₦{totalWithdrawn.toLocaleString()}</p>
+                </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Quick Actions */}
+        {/* How to Earn */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6"
+        >
+          <Card variant="gradient">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-sm">How to earn</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Watch 100% of videos marked with 🎯 "Eligible for reward" to earn.
+                    No earnings from likes, comments, or shares.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Earning History */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-2 gap-3 mb-6"
+          className="mb-6"
         >
-          <Card variant="gradient">
-            <CardContent className="p-4">
-              <button
-                onClick={() => navigate("/earn")}
-                className="w-full text-left"
-              >
-                <div className="w-10 h-10 rounded-xl bg-success/20 flex items-center justify-center mb-3">
-                  <TrendingUp className="w-5 h-5 text-success" />
-                </div>
-                <p className="font-semibold text-foreground text-sm">Earn More</p>
-                <p className="text-xs text-muted-foreground">Complete tasks</p>
-              </button>
-            </CardContent>
-          </Card>
+          <h2 className="font-display text-lg font-semibold text-foreground mb-3">
+            Earning History
+          </h2>
           
-          <Card variant="gradient">
-            <CardContent className="p-4">
-              <button
-                onClick={() => navigate("/home")}
-                className="w-full text-left"
-              >
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center mb-3">
-                  <WalletIcon className="w-5 h-5 text-primary" />
+          {earningHistory.length === 0 ? (
+            <Card variant="gradient">
+              <CardContent className="p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
+                  <Target className="w-6 h-6 text-muted-foreground" />
                 </div>
-                <p className="font-semibold text-foreground text-sm">Watch & Earn</p>
-                <p className="text-xs text-muted-foreground">Browse content</p>
-              </button>
-            </CardContent>
-          </Card>
+                <p className="text-foreground font-medium mb-1">No earnings yet</p>
+                <p className="text-muted-foreground text-sm mb-4">
+                  Watch monetized videos to start earning!
+                </p>
+                <Button variant="gold" onClick={() => navigate("/home")}>
+                  Browse Videos
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {earningHistory.slice(0, 10).map((earning, index) => (
+                <motion.div
+                  key={earning.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + index * 0.05 }}
+                >
+                  <Card variant="default">
+                    <CardContent className="p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
+                          <Target className="w-4 h-4 text-success" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-foreground text-sm">Watched video</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(earning.timestamp).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-success font-bold">+₦{earning.amount}</span>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         {/* Withdrawal History */}
@@ -130,19 +185,19 @@ export default function Wallet() {
           transition={{ delay: 0.3 }}
         >
           <h2 className="font-display text-lg font-semibold text-foreground mb-3">
-            Recent Withdrawals
+            Withdrawal History
           </h2>
           
           {withdrawalHistory.length === 0 ? (
             <Card variant="gradient">
               <CardContent className="p-6 text-center">
                 <p className="text-muted-foreground text-sm">
-                  No withdrawals yet. Start earning and cash out!
+                  No withdrawals yet
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {withdrawalHistory.slice(0, 5).map((withdrawal, index) => (
                 <motion.div
                   key={withdrawal.id}
@@ -151,22 +206,26 @@ export default function Wallet() {
                   transition={{ delay: 0.4 + index * 0.1 }}
                 >
                   <Card variant="default">
-                    <CardContent className="p-4">
+                    <CardContent className="p-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            withdrawal.status === "completed" 
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                            withdrawal.status === "approved" || withdrawal.status === "completed"
                               ? "bg-success/20" 
+                              : withdrawal.status === "rejected"
+                              ? "bg-destructive/20"
                               : "bg-primary/20"
                           }`}>
-                            <ArrowUpRight className={`w-5 h-5 ${
-                              withdrawal.status === "completed"
+                            <ArrowUpRight className={`w-4 h-4 ${
+                              withdrawal.status === "approved" || withdrawal.status === "completed"
                                 ? "text-success"
+                                : withdrawal.status === "rejected"
+                                ? "text-destructive"
                                 : "text-primary"
                             }`} />
                           </div>
                           <div>
-                            <p className="font-semibold text-foreground">
+                            <p className="font-semibold text-foreground text-sm">
                               ₦{withdrawal.amount.toLocaleString()}
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -174,15 +233,15 @@ export default function Wallet() {
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            withdrawal.status === "completed"
-                              ? "bg-success/20 text-success"
-                              : "bg-primary/20 text-primary"
-                          }`}>
-                            {withdrawal.status}
-                          </span>
-                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                          withdrawal.status === "approved" || withdrawal.status === "completed"
+                            ? "bg-success/20 text-success"
+                            : withdrawal.status === "rejected"
+                            ? "bg-destructive/20 text-destructive"
+                            : "bg-primary/20 text-primary"
+                        }`}>
+                          {withdrawal.status}
+                        </span>
                       </div>
                     </CardContent>
                   </Card>
@@ -192,18 +251,23 @@ export default function Wallet() {
           )}
         </motion.div>
 
-        {/* Info note */}
+        {/* Beta disclaimer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="mt-6 p-4 rounded-xl bg-secondary/50 border border-border"
+          className="mt-6 p-4 rounded-xl bg-primary/10 border border-primary/30"
         >
-          <p className="text-xs text-muted-foreground text-center">
-            🇳🇬 Withdrawals are processed to Nigerian bank accounts within 24-48 hours.
-            <br />
-            <span className="text-primary">Foreign payouts coming soon!</span>
-          </p>
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-primary font-medium">Beta Testing Mode</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Simulated payouts only. No real money is involved during beta testing.
+                Economy and rewards structure subject to change.
+              </p>
+            </div>
+          </div>
         </motion.div>
       </div>
     </MobileLayout>
