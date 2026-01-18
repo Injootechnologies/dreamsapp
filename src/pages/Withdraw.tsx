@@ -20,22 +20,22 @@ export default function Withdraw() {
   const [bankSearch, setBankSearch] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   
+  const user = useDreamStore((state) => state.user);
   const availableBalance = useDreamStore((state) => state.availableBalance);
   const requestWithdrawal = useDreamStore((state) => state.requestWithdrawal);
 
   const amountNum = parseInt(amount) || 0;
   const isValidAmount = amountNum >= 100 && amountNum <= availableBalance;
 
-  // Simulate account name verification
+  // Use logged-in user's name for account verification
   const verifyAccount = () => {
     setIsVerifying(true);
     setTimeout(() => {
-      // Generate a random Nigerian name for simulation
-      const firstNames = ["Adebayo", "Chioma", "Oluwaseun", "Ngozi", "Emeka", "Aisha", "Tunde", "Blessing"];
-      const lastNames = ["Okonkwo", "Adeyemi", "Ibrahim", "Eze", "Bello", "Okoro", "Adeleke", "Nnamdi"];
-      const randomFirst = firstNames[Math.floor(Math.random() * firstNames.length)];
-      const randomLast = lastNames[Math.floor(Math.random() * lastNames.length)];
-      setAccountName(`${randomFirst} ${randomLast}`);
+      // Use the actual user's username/name
+      const verifiedName = user?.username 
+        ? user.username.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        : "Account Holder";
+      setAccountName(verifiedName);
       setIsVerifying(false);
     }, 1500);
   };
@@ -87,17 +87,28 @@ export default function Withdraw() {
             </div>
 
             {/* Quick amounts */}
-            <div className="grid grid-cols-3 gap-2 mb-8">
-              {[500, 1000, "Max"].map((quickAmount) => (
-                <button
-                  key={quickAmount}
-                  onClick={() => setAmount(quickAmount === "Max" ? availableBalance.toString() : quickAmount.toString())}
-                  className="py-3 rounded-xl bg-secondary text-foreground font-medium hover:bg-secondary/80 transition-colors"
-                >
-                  {quickAmount === "Max" ? "Max" : `₦${quickAmount}`}
-                </button>
-              ))}
-            </div>
+            {availableBalance >= 100 && (
+              <div className="grid grid-cols-3 gap-2 mb-8">
+                {[500, 1000, "Max"].map((quickAmount) => {
+                  const val = quickAmount === "Max" ? availableBalance : quickAmount as number;
+                  const isDisabled = typeof quickAmount === 'number' && quickAmount > availableBalance;
+                  return (
+                    <button
+                      key={quickAmount}
+                      onClick={() => !isDisabled && setAmount(val.toString())}
+                      disabled={isDisabled}
+                      className={`py-3 rounded-xl font-medium transition-colors ${
+                        isDisabled 
+                          ? "bg-secondary/50 text-muted-foreground cursor-not-allowed"
+                          : "bg-secondary text-foreground hover:bg-secondary/80"
+                      }`}
+                    >
+                      {quickAmount === "Max" ? "Max" : `₦${quickAmount}`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="mt-auto">
               <Button
@@ -240,7 +251,7 @@ export default function Withdraw() {
                         <CheckCircle2 className="w-4 h-4 text-success" />
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Account Name</p>
+                        <p className="text-xs text-muted-foreground">Account Name (simulated)</p>
                         <p className="font-semibold text-foreground">{accountName}</p>
                       </div>
                     </div>
@@ -248,6 +259,10 @@ export default function Withdraw() {
                 </CardContent>
               </Card>
             )}
+
+            <p className="text-xs text-muted-foreground text-center mb-4">
+              Account name will be verified on submission
+            </p>
 
             <div className="mt-auto">
               <Button
@@ -300,8 +315,14 @@ export default function Withdraw() {
               </CardContent>
             </Card>
 
+            <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 mb-6">
+              <p className="text-xs text-center text-primary">
+                Account name confirmed (simulated)
+              </p>
+            </div>
+
             <p className="text-xs text-muted-foreground text-center mb-6">
-              Withdrawal requests require admin approval
+              Withdrawal requests require admin approval. This is a simulated payout.
             </p>
 
             <div className="mt-auto">
@@ -340,15 +361,15 @@ export default function Withdraw() {
             <p className="text-muted-foreground text-center mb-2">
               Your withdrawal of{" "}
               <span className="text-primary font-semibold">₦{amountNum.toLocaleString()}</span>{" "}
-              is pending admin approval.
+              is pending review.
             </p>
             
-            <div className="px-4 py-2 rounded-full bg-primary/20 border border-primary/50 mb-8">
-              <span className="text-sm font-medium text-primary">Pending Admin Approval</span>
+            <div className="px-4 py-2 rounded-full bg-primary/20 border border-primary/50 mb-4">
+              <span className="text-sm font-medium text-primary">Pending Review</span>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center mb-8">
-              You will be notified once your withdrawal is approved.
+            <p className="text-xs text-muted-foreground text-center mb-8 max-w-[280px]">
+              This is a simulated payout. No real money is involved during beta testing.
             </p>
 
             <Button

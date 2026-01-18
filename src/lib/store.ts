@@ -1,4 +1,5 @@
 // Dream$ State Management - Beta Testing Platform
+// NEW: Earn ONLY from watching 100% of MONETIZED videos
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -7,6 +8,8 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  phone?: string;
+  bio?: string;
   university?: string;
   createdAt: Date;
   profilePhoto?: string;
@@ -20,6 +23,7 @@ export interface Video {
   id: string;
   creator: string;
   creatorId: string;
+  creatorAvatar?: string;
   caption: string;
   likes: number;
   comments: Comment[];
@@ -30,6 +34,9 @@ export interface Video {
   thumbnail: string;
   category: 'foryou' | 'following' | 'explore';
   createdAt: Date;
+  isMonetized: boolean; // CRITICAL: Only monetized videos earn
+  rewardAmount: number; // Amount earned for 100% watch
+  duration: number; // Video duration in seconds
 }
 
 export interface Comment {
@@ -43,9 +50,10 @@ export interface Comment {
 
 export interface EarningActivity {
   id: string;
-  type: 'watch' | 'like' | 'comment' | 'save' | 'create' | 'challenge';
+  type: 'watch';
   amount: number;
   description: string;
+  videoId: string;
   timestamp: Date;
 }
 
@@ -79,16 +87,21 @@ interface DreamStore {
   
   // Earnings (ZERO STATE for new users)
   availableBalance: number;
-  pendingEarnings: number;
   totalEarned: number;
   totalWithdrawn: number;
   earningHistory: EarningActivity[];
   
-  // Interactions
+  // Interactions (NO earnings from these!)
   likedVideos: Set<string>;
   savedVideos: Set<string>;
-  watchedVideos: Set<string>;
-  commentedVideos: Set<string>;
+  
+  // Video watch progress tracking
+  watchedVideos: Set<string>; // Fully watched (100%)
+  videoWatchProgress: Map<string, number>; // Progress 0-100
+  earnedFromVideos: Set<string>; // Videos already earned from (prevent replay farming)
+  
+  // Comments per video
+  videoComments: Map<string, Comment[]>;
   
   // Withdrawals
   withdrawalHistory: WithdrawalRequest[];
@@ -100,7 +113,7 @@ interface DreamStore {
   // Notifications
   notifications: Notification[];
   
-  // Admin data (simulated all users)
+  // Admin data
   allUsers: User[];
   allWithdrawals: WithdrawalRequest[];
   
@@ -108,15 +121,26 @@ interface DreamStore {
   login: (user: User) => void;
   logout: () => void;
   completeOnboarding: () => void;
-  addEarning: (activity: Omit<EarningActivity, 'id' | 'timestamp'>) => void;
-  requestWithdrawal: (amount: number, bank: string, accountNumber: string, accountName: string) => void;
-  incrementContentCount: () => void;
+  updateProfile: (updates: Partial<User>) => void;
   
-  // Interactions
-  toggleLike: (videoId: string) => boolean;
-  toggleSave: (videoId: string) => boolean;
+  // Earning action (ONLY from watching monetized videos)
+  earnFromVideo: (videoId: string, amount: number, description: string) => void;
+  
+  // Video watch tracking
+  updateWatchProgress: (videoId: string, progress: number) => void;
+  markVideoFullyWatched: (videoId: string, video: Video) => boolean;
+  
+  // Interactions (NO earnings)
+  toggleLike: (videoId: string) => void;
+  toggleSave: (videoId: string) => void;
   addComment: (videoId: string, text: string) => void;
-  markVideoWatched: (videoId: string) => boolean;
+  getVideoComments: (videoId: string) => Comment[];
+  
+  // Content
+  uploadVideo: (video: Video) => void;
+  
+  // Withdrawal
+  requestWithdrawal: (amount: number, bank: string, accountNumber: string, accountName: string) => void;
   
   // Admin actions
   approveWithdrawal: (withdrawalId: string) => void;
@@ -134,6 +158,8 @@ interface DreamStore {
 // Convert Set to Array for persistence
 const setToArray = (set: Set<string>): string[] => Array.from(set);
 const arrayToSet = (arr: string[]): Set<string> => new Set(arr);
+const mapToArray = (map: Map<string, any>): [string, any][] => Array.from(map.entries());
+const arrayToMap = <T>(arr: [string, T][]): Map<string, T> => new Map(arr);
 
 export const useDreamStore = create<DreamStore>()(
   persist(
@@ -143,7 +169,6 @@ export const useDreamStore = create<DreamStore>()(
       isAuthenticated: false,
       hasCompletedOnboarding: false,
       availableBalance: 0,
-      pendingEarnings: 0,
       totalEarned: 0,
       totalWithdrawn: 0,
       earningHistory: [],
@@ -153,7 +178,9 @@ export const useDreamStore = create<DreamStore>()(
       likedVideos: new Set(),
       savedVideos: new Set(),
       watchedVideos: new Set(),
-      commentedVideos: new Set(),
+      earnedFromVideos: new Set(),
+      videoWatchProgress: new Map(),
+      videoComments: new Map(),
       notifications: [],
       allUsers: [],
       allWithdrawals: [],
@@ -161,7 +188,6 @@ export const useDreamStore = create<DreamStore>()(
       // Actions
       login: (user) => {
         const state = get();
-        // Add to all users if not exists
         const existingUser = state.allUsers.find(u => u.id === user.id);
         if (!existingUser) {
           set({ 
@@ -182,113 +208,148 @@ export const useDreamStore = create<DreamStore>()(
       
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       
+      updateProfile: (updates) => {
+        const state = get();
+        if (state.user) {
+          set({ user: { ...state.user, ...updates } });
+        }
+      },
+      
       resetToZeroState: () => set({
         availableBalance: 0,
-        pendingEarnings: 0,
         totalEarned: 0,
         totalWithdrawn: 0,
         earningHistory: [],
         likedVideos: new Set(),
         savedVideos: new Set(),
         watchedVideos: new Set(),
-        commentedVideos: new Set(),
+        earnedFromVideos: new Set(),
+        videoWatchProgress: new Map(),
+        videoComments: new Map(),
+        userVideos: [],
+        contentCount: 0,
       }),
       
-      addEarning: (activity) => {
+      // ONLY way to earn: Watch 100% of monetized video
+      earnFromVideo: (videoId, amount, description) => {
         const state = get();
         
+        // Check if already earned from this video
+        if (state.earnedFromVideos.has(videoId)) {
+          return; // No replay farming
+        }
+        
         const newActivity: EarningActivity = {
-          ...activity,
           id: Math.random().toString(36).substr(2, 9),
+          type: 'watch',
+          amount,
+          description,
+          videoId,
           timestamp: new Date(),
         };
         
-        // Add to available balance immediately (no daily limit in beta)
+        const newEarned = new Set(state.earnedFromVideos);
+        newEarned.add(videoId);
+        
         set({
-          availableBalance: state.availableBalance + activity.amount,
-          totalEarned: state.totalEarned + activity.amount,
+          availableBalance: state.availableBalance + amount,
+          totalEarned: state.totalEarned + amount,
           earningHistory: [newActivity, ...state.earningHistory].slice(0, 100),
+          earnedFromVideos: newEarned,
+        });
+        
+        // Add notification
+        state.addNotification({
+          type: 'earning',
+          title: 'Reward Earned! 🎉',
+          message: `You earned ₦${amount} for watching a sponsored video`,
         });
       },
       
-      // Interaction actions with earning logic
-      toggleLike: (videoId) => {
+      updateWatchProgress: (videoId, progress) => {
         const state = get();
-        const newLiked = new Set(state.likedVideos);
-        let earned = false;
-        
-        if (newLiked.has(videoId)) {
-          newLiked.delete(videoId);
-        } else {
-          newLiked.add(videoId);
-          // Award earning for like
-          state.addEarning({
-            type: 'like',
-            amount: 5,
-            description: 'Liked a video',
-          });
-          earned = true;
-        }
-        
-        set({ likedVideos: newLiked });
-        return earned;
+        const newProgress = new Map(state.videoWatchProgress);
+        newProgress.set(videoId, progress);
+        set({ videoWatchProgress: newProgress });
       },
       
-      toggleSave: (videoId) => {
-        const state = get();
-        const newSaved = new Set(state.savedVideos);
-        let earned = false;
-        
-        if (newSaved.has(videoId)) {
-          newSaved.delete(videoId);
-        } else {
-          newSaved.add(videoId);
-          // Award earning for save
-          state.addEarning({
-            type: 'save',
-            amount: 5,
-            description: 'Saved a video',
-          });
-          earned = true;
-        }
-        
-        set({ savedVideos: newSaved });
-        return earned;
-      },
-      
-      addComment: (videoId, text) => {
-        const state = get();
-        const newCommented = new Set(state.commentedVideos);
-        
-        if (!newCommented.has(videoId)) {
-          newCommented.add(videoId);
-          // Award earning for first comment on this video
-          state.addEarning({
-            type: 'comment',
-            amount: 10,
-            description: 'Commented on a video',
-          });
-        }
-        
-        set({ commentedVideos: newCommented });
-      },
-      
-      markVideoWatched: (videoId) => {
+      markVideoFullyWatched: (videoId, video) => {
         const state = get();
         const newWatched = new Set(state.watchedVideos);
         
         if (!newWatched.has(videoId)) {
           newWatched.add(videoId);
-          // Award earning for watching
-          state.addEarning({
-            type: 'watch',
-            amount: 20,
-            description: 'Watched a video',
-          });
           set({ watchedVideos: newWatched });
-          return true;
+          
+          // Only earn if monetized and not already earned
+          if (video.isMonetized && !state.earnedFromVideos.has(videoId)) {
+            state.earnFromVideo(videoId, video.rewardAmount, `Watched "${video.caption.slice(0, 30)}..."`);
+            return true;
+          }
         }
         return false;
+      },
+      
+      // Interaction actions - NO EARNINGS
+      toggleLike: (videoId) => {
+        const state = get();
+        const newLiked = new Set(state.likedVideos);
+        
+        if (newLiked.has(videoId)) {
+          newLiked.delete(videoId);
+        } else {
+          newLiked.add(videoId);
+        }
+        
+        set({ likedVideos: newLiked });
+        // NO earnings!
+      },
+      
+      toggleSave: (videoId) => {
+        const state = get();
+        const newSaved = new Set(state.savedVideos);
+        
+        if (newSaved.has(videoId)) {
+          newSaved.delete(videoId);
+        } else {
+          newSaved.add(videoId);
+        }
+        
+        set({ savedVideos: newSaved });
+        // NO earnings!
+      },
+      
+      addComment: (videoId, text) => {
+        const state = get();
+        const newComments = new Map(state.videoComments);
+        const existing = newComments.get(videoId) || [];
+        
+        const newComment: Comment = {
+          id: Math.random().toString(36).substr(2, 9),
+          userId: state.user?.id || 'anonymous',
+          username: state.user?.username || 'Anonymous',
+          text,
+          createdAt: new Date(),
+          likes: 0,
+        };
+        
+        newComments.set(videoId, [...existing, newComment]);
+        set({ videoComments: newComments });
+        // NO earnings!
+      },
+      
+      getVideoComments: (videoId) => {
+        const state = get();
+        return state.videoComments.get(videoId) || [];
+      },
+      
+      uploadVideo: (video) => {
+        const state = get();
+        set({
+          userVideos: [video, ...state.userVideos],
+          contentCount: state.contentCount + 1,
+        });
+        // NO earnings for posting!
       },
       
       requestWithdrawal: (amount, bank, accountNumber, accountName) => {
@@ -307,7 +368,6 @@ export const useDreamStore = create<DreamStore>()(
           username: state.user?.username || 'Unknown User',
         };
         
-        // Add notification for admin
         state.addNotification({
           type: 'admin',
           title: 'New Withdrawal Request',
@@ -316,6 +376,7 @@ export const useDreamStore = create<DreamStore>()(
         
         set({
           availableBalance: state.availableBalance - amount,
+          totalWithdrawn: state.totalWithdrawn + amount,
           withdrawalHistory: [withdrawal, ...state.withdrawalHistory],
           allWithdrawals: [withdrawal, ...state.allWithdrawals],
         });
@@ -358,6 +419,7 @@ export const useDreamStore = create<DreamStore>()(
         if (withdrawal && withdrawal.userId === state.user?.id) {
           set({
             availableBalance: state.availableBalance + withdrawal.amount,
+            totalWithdrawn: state.totalWithdrawn - withdrawal.amount,
           });
         }
         
@@ -372,10 +434,6 @@ export const useDreamStore = create<DreamStore>()(
           withdrawalHistory: updatedWithdrawals.filter(w => w.userId === state.user?.id),
         });
       },
-      
-      incrementContentCount: () => set((state) => ({ 
-        contentCount: state.contentCount + 1 
-      })),
       
       addNotification: (notification) => {
         const state = get();
@@ -405,13 +463,15 @@ export const useDreamStore = create<DreamStore>()(
       },
     }),
     {
-      name: 'dream-storage',
+      name: 'dream-storage-v2',
       partialize: (state) => ({
         ...state,
         likedVideos: setToArray(state.likedVideos),
         savedVideos: setToArray(state.savedVideos),
         watchedVideos: setToArray(state.watchedVideos),
-        commentedVideos: setToArray(state.commentedVideos),
+        earnedFromVideos: setToArray(state.earnedFromVideos),
+        videoWatchProgress: mapToArray(state.videoWatchProgress),
+        videoComments: mapToArray(state.videoComments),
       }),
       merge: (persistedState: any, currentState) => ({
         ...currentState,
@@ -419,229 +479,535 @@ export const useDreamStore = create<DreamStore>()(
         likedVideos: arrayToSet(persistedState?.likedVideos || []),
         savedVideos: arrayToSet(persistedState?.savedVideos || []),
         watchedVideos: arrayToSet(persistedState?.watchedVideos || []),
-        commentedVideos: arrayToSet(persistedState?.commentedVideos || []),
+        earnedFromVideos: arrayToSet(persistedState?.earnedFromVideos || []),
+        videoWatchProgress: arrayToMap(persistedState?.videoWatchProgress || []),
+        videoComments: arrayToMap(persistedState?.videoComments || []),
       }),
     }
   )
 );
 
-// Demo videos using free stock video URLs
+// 30+ Demo videos with monetization status
 export const demoVideos: Video[] = [
-  // For You videos
+  // FOR YOU - Mix of monetized and non-monetized
   {
     id: 'fy1',
-    creator: '@chioma_vibes',
+    creator: 'chioma_vibes',
     creatorId: 'u1',
-    caption: 'Lagos nightlife hits different 🌃✨ #lagos #vibes #beta',
+    creatorAvatar: 'CV',
+    caption: 'Lagos nightlife hits different 🌃✨ #lagos #vibes',
     likes: 12400,
     comments: [],
     saves: 892,
     shares: 234,
     views: 45000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-looking-at-the-sunset-1094-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 25,
+    duration: 12,
   },
   {
     id: 'fy2',
-    creator: '@tech_adebayo',
+    creator: 'tech_adebayo',
     creatorId: 'u2',
-    caption: 'How I made my first ₦100k online 💰 Watch till the end! #money #beta',
+    creatorAvatar: 'TA',
+    caption: 'How I made my first ₦100k online 💰 Watch till the end!',
     likes: 45200,
     comments: [],
     saves: 3241,
     shares: 1203,
     views: 120000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-working-on-a-laptop-in-a-coffee-shop-4823-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 15,
   },
   {
     id: 'fy3',
-    creator: '@amaka_cooks',
+    creator: 'amaka_cooks',
     creatorId: 'u3',
-    caption: 'Jollof rice recipe that slaps 🍚🔥 #foodie #nigerian #beta',
+    creatorAvatar: 'AC',
+    caption: 'Jollof rice recipe that slaps 🍚🔥 #foodie #nigerian',
     likes: 8900,
     comments: [],
     saves: 567,
     shares: 189,
     views: 32000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-chef-preparing-a-plate-in-a-kitchen-8402-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 20,
+    duration: 18,
   },
   {
     id: 'fy4',
-    creator: '@dance_king_ng',
+    creator: 'dance_king_ng',
     creatorId: 'u4',
-    caption: 'New Afrobeats challenge 🕺💥 Can you do this? #dance #beta',
+    creatorAvatar: 'DK',
+    caption: 'New Afrobeats challenge 🕺💥 Can you do this? #dance',
     likes: 67800,
     comments: [],
     saves: 4521,
     shares: 2341,
     views: 230000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-people-dancing-at-a-party-4637-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 10,
   },
   {
     id: 'fy5',
-    creator: '@unilag_babe',
+    creator: 'unilag_babe',
     creatorId: 'u5',
-    caption: 'Day in my life as a final year student 📚✨ #student #beta',
+    creatorAvatar: 'UB',
+    caption: 'Day in my life as a final year student 📚✨ #student',
     likes: 5600,
     comments: [],
     saves: 234,
     shares: 89,
     views: 18000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-typing-on-a-laptop-in-a-library-42386-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 15,
+    duration: 20,
   },
-  // Following videos
+  {
+    id: 'fy6',
+    creator: 'naija_comedy_king',
+    creatorId: 'u20',
+    creatorAvatar: 'NC',
+    caption: 'When your mama catches you sneaking out 😂💀',
+    likes: 156000,
+    comments: [],
+    saves: 12000,
+    shares: 8500,
+    views: 890000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-decorating-a-christmas-tree-4808-large.mp4',
+    thumbnail: '',
+    category: 'foryou',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 30,
+    duration: 14,
+  },
+  {
+    id: 'fy7',
+    creator: 'lagos_traffic_tales',
+    creatorId: 'u21',
+    creatorAvatar: 'LT',
+    caption: 'Third Mainland at 6am vs 6pm 🚗😩 #lagos #traffic',
+    likes: 34000,
+    comments: [],
+    saves: 1200,
+    shares: 890,
+    views: 120000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-walking-in-the-city-at-night-4365-large.mp4',
+    thumbnail: '',
+    category: 'foryou',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 16,
+  },
+  {
+    id: 'fy8',
+    creator: 'makeup_by_funke',
+    creatorId: 'u22',
+    creatorAvatar: 'MF',
+    caption: 'Wedding guest look under ₦5k 💄✨ #makeup #budget',
+    likes: 28000,
+    comments: [],
+    saves: 5600,
+    shares: 1200,
+    views: 95000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-portrait-of-a-fashion-woman-at-a-beach-1203-large.mp4',
+    thumbnail: '',
+    category: 'foryou',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 20,
+    duration: 22,
+  },
+  {
+    id: 'fy9',
+    creator: 'fit_naija_boy',
+    creatorId: 'u23',
+    creatorAvatar: 'FN',
+    caption: 'No gym? No problem 💪🏾 Home workout routine',
+    likes: 42000,
+    comments: [],
+    saves: 8900,
+    shares: 2100,
+    views: 156000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-doing-yoga-at-home-5095-large.mp4',
+    thumbnail: '',
+    category: 'foryou',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 25,
+  },
+  {
+    id: 'fy10',
+    creator: 'abuja_foodie',
+    creatorId: 'u24',
+    creatorAvatar: 'AF',
+    caption: 'Best suya spots in Wuse 2 🍖🔥 #abuja #food',
+    likes: 15600,
+    comments: [],
+    saves: 3400,
+    shares: 780,
+    views: 67000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-chef-preparing-a-plate-in-a-kitchen-8402-large.mp4',
+    thumbnail: '',
+    category: 'foryou',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 25,
+    duration: 18,
+  },
+  // FOLLOWING - Mixed monetization
   {
     id: 'fl1',
-    creator: '@fave_creator',
+    creator: 'fave_creator',
     creatorId: 'u6',
-    caption: 'Made this just for my followers 💕 #love #beta',
+    creatorAvatar: 'FC',
+    caption: 'Made this just for my followers 💕 #love',
     likes: 23400,
     comments: [],
     saves: 1892,
     shares: 534,
     views: 78000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-decorating-a-christmas-tree-4808-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 12,
   },
   {
     id: 'fl2',
-    creator: '@naija_comedy',
+    creator: 'naija_comedy',
     creatorId: 'u7',
-    caption: 'When your mama calls your full name 😂💀 #comedy #beta',
+    creatorAvatar: 'NC',
+    caption: 'When your mama calls your full name 😂💀 #comedy',
     likes: 89000,
     comments: [],
     saves: 5432,
     shares: 8923,
     views: 450000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-group-of-friends-at-a-party-4652-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 35,
+    duration: 15,
   },
   {
     id: 'fl3',
-    creator: '@lagos_hustler',
+    creator: 'lagos_hustler',
     creatorId: 'u8',
-    caption: 'The hustle never stops 💪🏾 #motivation #beta',
+    creatorAvatar: 'LH',
+    caption: 'The hustle never stops 💪🏾 #motivation',
     likes: 34500,
     comments: [],
     saves: 2341,
     shares: 1234,
     views: 95000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-walking-in-the-city-at-night-4365-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 20,
+    duration: 18,
   },
-  // Explore videos
+  {
+    id: 'fl4',
+    creator: 'music_maestro',
+    creatorId: 'u25',
+    creatorAvatar: 'MM',
+    caption: 'New track dropping Friday 🎵🔥 #newmusic',
+    likes: 67000,
+    comments: [],
+    saves: 12000,
+    shares: 4500,
+    views: 234000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-dj-mixing-at-a-nightclub-4829-large.mp4',
+    thumbnail: '',
+    category: 'following',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 20,
+  },
+  {
+    id: 'fl5',
+    creator: 'tech_sis',
+    creatorId: 'u26',
+    creatorAvatar: 'TS',
+    caption: 'Coding tutorial for beginners 💻 #tech #coding',
+    likes: 18900,
+    comments: [],
+    saves: 6700,
+    shares: 890,
+    views: 78000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-working-on-a-laptop-in-a-coffee-shop-4823-large.mp4',
+    thumbnail: '',
+    category: 'following',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 25,
+    duration: 25,
+  },
+  {
+    id: 'fl6',
+    creator: 'fashion_plug_ng',
+    creatorId: 'u27',
+    creatorAvatar: 'FP',
+    caption: 'Ankara collection 2024 🧵✨ #fashion',
+    likes: 45000,
+    comments: [],
+    saves: 9800,
+    shares: 2300,
+    views: 167000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-portrait-of-a-fashion-woman-at-a-beach-1203-large.mp4',
+    thumbnail: '',
+    category: 'following',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 16,
+  },
+  {
+    id: 'fl7',
+    creator: 'travel_ng_',
+    creatorId: 'u28',
+    creatorAvatar: 'TN',
+    caption: 'Hidden beach in Calabar you need to visit 🏖️',
+    likes: 56000,
+    comments: [],
+    saves: 14000,
+    shares: 5600,
+    views: 234000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-tropical-beach-resort-4637-large.mp4',
+    thumbnail: '',
+    category: 'following',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 30,
+    duration: 22,
+  },
+  // EXPLORE - Mixed monetization
   {
     id: 'ex1',
-    creator: '@travel_ng',
+    creator: 'travel_ng',
     creatorId: 'u9',
-    caption: 'Hidden gems in Nigeria you need to visit 🌴 #travel #beta',
+    creatorAvatar: 'TN',
+    caption: 'Hidden gems in Nigeria you need to visit 🌴 #travel',
     likes: 56700,
     comments: [],
     saves: 8923,
     shares: 4532,
     views: 180000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-tropical-beach-resort-4637-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 30,
+    duration: 20,
   },
   {
     id: 'ex2',
-    creator: '@fit_naija',
+    creator: 'fit_naija',
     creatorId: 'u10',
-    caption: 'Home workout that burns 500 calories 🔥💪 #fitness #beta',
+    creatorAvatar: 'FN',
+    caption: 'Home workout that burns 500 calories 🔥💪 #fitness',
     likes: 42300,
     comments: [],
     saves: 6721,
     shares: 2345,
     views: 145000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-doing-yoga-at-home-5095-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 25,
   },
   {
     id: 'ex3',
-    creator: '@style_queen',
+    creator: 'style_queen',
     creatorId: 'u11',
-    caption: 'Ankara styles for every occasion 👗✨ #fashion #beta',
+    creatorAvatar: 'SQ',
+    caption: 'Ankara styles for every occasion 👗✨ #fashion',
     likes: 78900,
     comments: [],
     saves: 12432,
     shares: 5678,
     views: 290000,
     videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-portrait-of-a-fashion-woman-at-a-beach-1203-large.mp4',
-    thumbnail: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=700&fit=crop',
+    thumbnail: '',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 25,
+    duration: 18,
+  },
+  {
+    id: 'ex4',
+    creator: 'crypto_naija',
+    creatorId: 'u29',
+    creatorAvatar: 'CN',
+    caption: 'Bitcoin basics for Nigerians 💰 #crypto #money',
+    likes: 34000,
+    comments: [],
+    saves: 8900,
+    shares: 2100,
+    views: 120000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-working-on-a-laptop-in-a-coffee-shop-4823-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 35,
+    duration: 28,
+  },
+  {
+    id: 'ex5',
+    creator: 'small_chops_queen',
+    creatorId: 'u30',
+    creatorAvatar: 'SC',
+    caption: 'Puff puff recipe from scratch 🍩 #food #recipe',
+    likes: 23000,
+    comments: [],
+    saves: 5600,
+    shares: 1200,
+    views: 89000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-chef-preparing-a-plate-in-a-kitchen-8402-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 20,
+  },
+  {
+    id: 'ex6',
+    creator: 'hair_by_nkechi',
+    creatorId: 'u31',
+    creatorAvatar: 'HN',
+    caption: 'Knotless braids tutorial 💇🏾‍♀️ #hair #braids',
+    likes: 67000,
+    comments: [],
+    saves: 15000,
+    shares: 4500,
+    views: 234000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-looking-at-the-sunset-1094-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 25,
+    duration: 22,
+  },
+  {
+    id: 'ex7',
+    creator: 'spoken_word_ng',
+    creatorId: 'u32',
+    creatorAvatar: 'SW',
+    caption: 'This poem will make you cry 😭💔 #poetry',
+    likes: 89000,
+    comments: [],
+    saves: 18000,
+    shares: 7800,
+    views: 340000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-young-woman-typing-on-a-laptop-in-a-library-42386-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 15,
+  },
+  {
+    id: 'ex8',
+    creator: 'pet_lover_ng',
+    creatorId: 'u33',
+    creatorAvatar: 'PL',
+    caption: 'My dog does the funniest things 🐕😂 #pets',
+    likes: 45000,
+    comments: [],
+    saves: 6700,
+    shares: 3400,
+    views: 156000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-group-of-friends-at-a-party-4652-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 20,
+    duration: 12,
+  },
+  {
+    id: 'ex9',
+    creator: 'diy_nigeria',
+    creatorId: 'u34',
+    creatorAvatar: 'DI',
+    caption: 'Room makeover under ₦20k 🏠✨ #diy #home',
+    likes: 34000,
+    comments: [],
+    saves: 9800,
+    shares: 2100,
+    views: 120000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-woman-decorating-a-christmas-tree-4808-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: true,
+    rewardAmount: 30,
+    duration: 24,
+  },
+  {
+    id: 'ex10',
+    creator: 'game_reviews_ng',
+    creatorId: 'u35',
+    creatorAvatar: 'GR',
+    caption: 'FIFA 24 review - Worth it? 🎮 #gaming',
+    likes: 28000,
+    comments: [],
+    saves: 4500,
+    shares: 1800,
+    views: 98000,
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-man-working-on-a-laptop-in-a-coffee-shop-4823-large.mp4',
+    thumbnail: '',
+    category: 'explore',
+    createdAt: new Date(),
+    isMonetized: false,
+    rewardAmount: 0,
+    duration: 30,
   },
 ];
 
-// Mock earning tasks
-export const mockTasks = [
-  {
-    id: '1',
-    title: 'Watch sponsored video',
-    description: 'Watch a 30-second brand video',
-    amount: 20,
-    status: 'available' as const,
-    icon: 'play',
-  },
-  {
-    id: '2',
-    title: 'Create original content',
-    description: 'Upload a new video or post',
-    amount: 50,
-    status: 'available' as const,
-    icon: 'video',
-  },
-  {
-    id: '3',
-    title: 'Complete daily challenge',
-    description: 'Participate in today\'s trending challenge',
-    amount: 30,
-    status: 'available' as const,
-    icon: 'trophy',
-  },
-  {
-    id: '4',
-    title: 'Engage with 10 posts',
-    description: 'Like and comment on community content',
-    amount: 15,
-    status: 'available' as const,
-    icon: 'heart',
-  },
-  {
-    id: '5',
-    title: 'Share to WhatsApp',
-    description: 'Share a Dream$ video to your status',
-    amount: 25,
-    status: 'available' as const,
-    icon: 'share',
-  },
-];
-
-// Extended Nigerian banks (commercial + microfinance)
+// Extended Nigerian banks
 export const nigerianBanks = [
   // Commercial Banks
   'Access Bank',
@@ -692,3 +1058,26 @@ export const nigerianBanks = [
   'Hasal Microfinance Bank',
   'Trustbanc J6 Microfinance Bank',
 ];
+
+// Creator profiles for demo
+export const creatorProfiles: Record<string, {
+  id: string;
+  username: string;
+  bio: string;
+  followers: number;
+  following: number;
+  totalViews: number;
+  avatar: string;
+}> = {
+  'u1': { id: 'u1', username: 'chioma_vibes', bio: 'Lagos babe 🌃 Content creator', followers: 45000, following: 234, totalViews: 890000, avatar: 'CV' },
+  'u2': { id: 'u2', username: 'tech_adebayo', bio: 'Tech entrepreneur 💻', followers: 120000, following: 567, totalViews: 2340000, avatar: 'TA' },
+  'u3': { id: 'u3', username: 'amaka_cooks', bio: 'Nigerian food blogger 🍚', followers: 32000, following: 189, totalViews: 456000, avatar: 'AC' },
+  'u4': { id: 'u4', username: 'dance_king_ng', bio: 'Professional dancer 🕺', followers: 230000, following: 890, totalViews: 5600000, avatar: 'DK' },
+  'u5': { id: 'u5', username: 'unilag_babe', bio: 'Final year student 📚', followers: 18000, following: 456, totalViews: 234000, avatar: 'UB' },
+  'u6': { id: 'u6', username: 'fave_creator', bio: 'Your favorite creator 💕', followers: 78000, following: 234, totalViews: 1200000, avatar: 'FC' },
+  'u7': { id: 'u7', username: 'naija_comedy', bio: 'Comedy content 😂', followers: 450000, following: 123, totalViews: 8900000, avatar: 'NC' },
+  'u8': { id: 'u8', username: 'lagos_hustler', bio: 'Entrepreneur | Motivator 💪🏾', followers: 95000, following: 345, totalViews: 1800000, avatar: 'LH' },
+  'u9': { id: 'u9', username: 'travel_ng', bio: 'Exploring Nigeria 🌴', followers: 180000, following: 567, totalViews: 3400000, avatar: 'TN' },
+  'u10': { id: 'u10', username: 'fit_naija', bio: 'Fitness coach 💪', followers: 145000, following: 234, totalViews: 2100000, avatar: 'FN' },
+  'u11': { id: 'u11', username: 'style_queen', bio: 'Fashion & Style 👗', followers: 290000, following: 456, totalViews: 4500000, avatar: 'SQ' },
+};
