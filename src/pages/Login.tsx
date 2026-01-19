@@ -9,7 +9,6 @@ import { useDreamStore } from "@/lib/store";
 export default function Login() {
   const navigate = useNavigate();
   const login = useDreamStore((state) => state.login);
-  const resetToZeroState = useDreamStore((state) => state.resetToZeroState);
   
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,20 +27,16 @@ export default function Login() {
       createdAt: new Date(),
       followers: 0,
       following: 0,
-      totalViews: 0,
     });
-    
-    // Reset earnings to zero for new session
-    resetToZeroState();
     
     navigate("/home");
   };
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background px-6 py-8">
-      {/* Beta Badge */}
+      {/* Demo Badge */}
       <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
-        <span className="text-xs font-medium text-primary">Beta</span>
+        <span className="text-xs font-medium text-primary">Demo</span>
       </div>
 
       {/* Back button */}
@@ -64,7 +59,7 @@ export default function Login() {
           Welcome Back
         </h1>
         <p className="text-muted-foreground">
-          Log in to continue earning.
+          Log in to continue exploring.
         </p>
       </motion.div>
 

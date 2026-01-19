@@ -3,15 +3,12 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Wallet as WalletIcon, ArrowUpRight, Clock, TrendingUp, Target, AlertCircle } from "lucide-react";
+import { Wallet as WalletIcon, ArrowUpRight, AlertCircle, Clock } from "lucide-react";
 import { useDreamStore } from "@/lib/store";
 
 export default function Wallet() {
   const navigate = useNavigate();
   const availableBalance = useDreamStore((state) => state.availableBalance);
-  const totalEarned = useDreamStore((state) => state.totalEarned);
-  const totalWithdrawn = useDreamStore((state) => state.totalWithdrawn);
-  const earningHistory = useDreamStore((state) => state.earningHistory);
   const withdrawalHistory = useDreamStore((state) => state.withdrawalHistory);
 
   return (
@@ -27,7 +24,7 @@ export default function Wallet() {
             Wallet
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Earn by watching monetized videos 100%
+            Demo wallet • No real transactions
           </p>
         </motion.div>
 
@@ -62,41 +59,16 @@ export default function Wallet() {
                   size="lg"
                   className="w-full"
                   onClick={() => navigate("/withdraw")}
-                  disabled={availableBalance < 100}
                 >
                   <ArrowUpRight className="w-5 h-5" />
-                  Withdraw Funds
+                  Request Withdrawal
                 </Button>
-                
-                {availableBalance < 100 && availableBalance > 0 && (
-                  <p className="text-xs text-muted-foreground text-center mt-2">
-                    Minimum withdrawal: ₦100
-                  </p>
-                )}
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-2 divide-x divide-border border-t border-border bg-secondary/30">
-                <div className="p-4 text-center">
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
-                    <TrendingUp className="w-4 h-4" />
-                    <span className="text-xs">Total Earned</span>
-                  </div>
-                  <p className="text-lg font-bold text-foreground">₦{totalEarned.toLocaleString()}</p>
-                </div>
-                <div className="p-4 text-center">
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span className="text-xs">Withdrawn</span>
-                  </div>
-                  <p className="text-lg font-bold text-foreground">₦{totalWithdrawn.toLocaleString()}</p>
-                </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* How to Earn */}
+        {/* Future Version Notice */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -107,13 +79,13 @@ export default function Wallet() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Target className="w-5 h-5 text-primary" />
+                  <Clock className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-semibold text-foreground text-sm">How to earn</p>
+                  <p className="font-semibold text-foreground text-sm">Coming Soon</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Watch 100% of videos marked with 🎯 "Eligible for reward" to earn.
-                    No earnings from likes, comments, or shares.
+                    Earnings & withdrawals will be enabled in future versions.
+                    This is a concept demo.
                   </p>
                 </div>
               </div>
@@ -121,7 +93,7 @@ export default function Wallet() {
           </Card>
         </motion.div>
 
-        {/* Earning History */}
+        {/* Earnings History Placeholder */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -129,53 +101,20 @@ export default function Wallet() {
           className="mb-6"
         >
           <h2 className="font-display text-lg font-semibold text-foreground mb-3">
-            Earning History
+            Earnings History
           </h2>
           
-          {earningHistory.length === 0 ? (
-            <Card variant="gradient">
-              <CardContent className="p-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
-                  <Target className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <p className="text-foreground font-medium mb-1">No earnings yet</p>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Watch monetized videos to start earning!
-                </p>
-                <Button variant="gold" onClick={() => navigate("/home")}>
-                  Browse Videos
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {earningHistory.slice(0, 10).map((earning, index) => (
-                <motion.div
-                  key={earning.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + index * 0.05 }}
-                >
-                  <Card variant="default">
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
-                          <Target className="w-4 h-4 text-success" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground text-sm">Watched video</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(earning.timestamp).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-success font-bold">+₦{earning.amount}</span>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          )}
+          <Card variant="gradient">
+            <CardContent className="p-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mx-auto mb-3">
+                <WalletIcon className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="text-foreground font-medium mb-1">No earnings yet</p>
+              <p className="text-muted-foreground text-sm">
+                Earnings will appear here in future versions
+              </p>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Withdrawal History */}
@@ -210,14 +149,14 @@ export default function Wallet() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            withdrawal.status === "approved" || withdrawal.status === "completed"
+                            withdrawal.status === "approved"
                               ? "bg-success/20" 
                               : withdrawal.status === "rejected"
                               ? "bg-destructive/20"
                               : "bg-primary/20"
                           }`}>
                             <ArrowUpRight className={`w-4 h-4 ${
-                              withdrawal.status === "approved" || withdrawal.status === "completed"
+                              withdrawal.status === "approved"
                                 ? "text-success"
                                 : withdrawal.status === "rejected"
                                 ? "text-destructive"
@@ -234,7 +173,7 @@ export default function Wallet() {
                           </div>
                         </div>
                         <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                          withdrawal.status === "approved" || withdrawal.status === "completed"
+                          withdrawal.status === "approved"
                             ? "bg-success/20 text-success"
                             : withdrawal.status === "rejected"
                             ? "bg-destructive/20 text-destructive"
@@ -251,7 +190,7 @@ export default function Wallet() {
           )}
         </motion.div>
 
-        {/* Beta disclaimer */}
+        {/* Demo disclaimer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -261,10 +200,10 @@ export default function Wallet() {
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-primary font-medium">Beta Testing Mode</p>
+              <p className="text-sm text-primary font-medium">Concept Demo</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Simulated payouts only. No real money is involved during beta testing.
-                Economy and rewards structure subject to change.
+                This is a concept demo. No real money or transactions are involved.
+                All data is simulated for demonstration purposes.
               </p>
             </div>
           </div>
