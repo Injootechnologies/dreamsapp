@@ -15,6 +15,8 @@ import Create from "./pages/Create";
 import Wallet from "./pages/Wallet";
 import Withdraw from "./pages/Withdraw";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import CreatorProfile from "./pages/CreatorProfile";
 import HowItWorks from "./pages/HowItWorks";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +43,8 @@ const App = () => (
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/withdraw" element={<Withdraw />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/creator/:id" element={<CreatorProfile />} />
           
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
