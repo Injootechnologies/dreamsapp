@@ -4,8 +4,8 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Settings, Grid, Heart, Play, Crown, Users } from "lucide-react";
-import { useDreamStore, demoVideos } from "@/lib/store";
+import { Settings, Grid, Heart, Image } from "lucide-react";
+import { useDreamStore, demoPosts } from "@/lib/store";
 
 type ProfileTab = 'posts' | 'liked';
 
@@ -14,16 +14,11 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   
   const user = useDreamStore((state) => state.user);
-  const totalEarned = useDreamStore((state) => state.totalEarned);
-  const userVideos = useDreamStore((state) => state.userVideos);
-  const likedVideos = useDreamStore((state) => state.likedVideos);
-  const contentCount = useDreamStore((state) => state.contentCount);
+  const userPosts = useDreamStore((state) => state.userPosts);
+  const likedPosts = useDreamStore((state) => state.likedPosts);
 
-  // Get liked videos data
-  const likedVideosList = demoVideos.filter(v => likedVideos.has(v.id));
-  
-  // Calculate total views from user's videos
-  const totalViews = userVideos.reduce((acc, v) => acc + v.views, 0);
+  // Get liked posts data
+  const likedPostsList = demoPosts.filter(p => likedPosts.has(p.id));
 
   return (
     <MobileLayout>
@@ -50,21 +45,18 @@ export default function Profile() {
                 {user?.username?.charAt(0).toUpperCase() || "D"}
               </span>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-success flex items-center justify-center border-4 border-background">
-              <Crown className="w-4 h-4 text-success-foreground" />
-            </div>
           </div>
 
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">
             @{user?.username || "dreamer"}
           </h1>
           <p className="text-muted-foreground text-sm text-center max-w-[250px]">
-            {user?.bio || "Dream$ Creator"}
+            {user?.bio || "DREAMS Creator"}
           </p>
           
-          {/* Beta tester badge */}
+          {/* Demo badge */}
           <div className="mt-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
-            <span className="text-xs font-medium text-primary">Beta Tester</span>
+            <span className="text-xs font-medium text-primary">Demo Account</span>
           </div>
         </motion.div>
 
@@ -84,33 +76,9 @@ export default function Profile() {
             <p className="text-xs text-muted-foreground">Following</p>
           </div>
           <div className="text-center">
-            <p className="text-xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Views</p>
+            <p className="text-xl font-bold text-foreground">{userPosts.length}</p>
+            <p className="text-xs text-muted-foreground">Posts</p>
           </div>
-        </motion.div>
-
-        {/* Earnings Summary */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="mb-6"
-        >
-          <Card variant="earning">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground">Total Earnings</p>
-                <p className="text-2xl font-bold text-gradient-gold">₦{totalEarned.toLocaleString()}</p>
-              </div>
-              <Button
-                variant="gold"
-                size="sm"
-                onClick={() => navigate("/wallet")}
-              >
-                View Wallet
-              </Button>
-            </CardContent>
-          </Card>
         </motion.div>
 
         {/* Tabs */}
@@ -151,75 +119,70 @@ export default function Profile() {
           transition={{ delay: 0.3 }}
         >
           {activeTab === 'posts' ? (
-            userVideos.length === 0 ? (
+            userPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                  <Play className="w-8 h-8 text-muted-foreground" />
+                  <Image className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <p className="text-foreground font-medium mb-1">You haven't posted yet</p>
-                <p className="text-sm text-muted-foreground mb-4">Share your first video!</p>
+                <p className="text-sm text-muted-foreground mb-4">Share your first image!</p>
                 <Button
                   variant="gold"
                   onClick={() => navigate("/create")}
                 >
-                  Create Video
+                  Create Post
                 </Button>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1">
-                {userVideos.map((video) => (
+                {userPosts.map((post) => (
                   <div
-                    key={video.id}
-                    className="aspect-[9/16] bg-secondary rounded-lg overflow-hidden relative"
+                    key={post.id}
+                    className="aspect-square bg-secondary rounded-lg overflow-hidden relative"
                   >
-                    <video
-                      src={video.videoUrl}
+                    <img
+                      src={post.imageUrl}
+                      alt={post.caption}
                       className="w-full h-full object-cover"
-                      muted
                     />
-                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs">
-                      <Play className="w-3 h-3" />
-                      <span>{video.views.toLocaleString()}</span>
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1.5 py-0.5 rounded">
+                      <Heart className="w-3 h-3" />
+                      <span>{post.likes}</span>
                     </div>
-                    {!video.isMonetized && (
-                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-muted/80 text-[10px] text-muted-foreground">
-                        Not monetized
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             )
           ) : (
-            likedVideosList.length === 0 ? (
+            likedPostsList.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
                   <Heart className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <p className="text-foreground font-medium mb-1">No liked videos yet</p>
-                <p className="text-sm text-muted-foreground mb-4">Videos you like will appear here</p>
+                <p className="text-foreground font-medium mb-1">No liked posts yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Posts you like will appear here</p>
                 <Button
                   variant="gold"
                   onClick={() => navigate("/home")}
                 >
-                  Browse Videos
+                  Browse Posts
                 </Button>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1">
-                {likedVideosList.map((video) => (
+                {likedPostsList.map((post) => (
                   <div
-                    key={video.id}
-                    className="aspect-[9/16] bg-secondary rounded-lg overflow-hidden relative"
+                    key={post.id}
+                    className="aspect-square bg-secondary rounded-lg overflow-hidden relative"
                   >
-                    <video
-                      src={video.videoUrl}
+                    <img
+                      src={post.imageUrl}
+                      alt={post.caption}
                       className="w-full h-full object-cover"
-                      muted
                     />
-                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs">
-                      <Play className="w-3 h-3" />
-                      <span>{video.views.toLocaleString()}</span>
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1.5 py-0.5 rounded">
+                      <Heart className="w-3 h-3" />
+                      <span>{post.likes.toLocaleString()}</span>
                     </div>
                   </div>
                 ))}

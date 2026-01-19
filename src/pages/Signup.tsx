@@ -9,42 +9,35 @@ import { useDreamStore } from "@/lib/store";
 export default function Signup() {
   const navigate = useNavigate();
   const login = useDreamStore((state) => state.login);
-  const resetToZeroState = useDreamStore((state) => state.resetToZeroState);
   
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     username: "",
     password: "",
-    university: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Create mock user with full profile - ZERO STATE
+    // Create mock user with ZERO STATE
     login({
       id: Math.random().toString(36).substr(2, 9),
       username: formData.username,
       email: formData.email,
-      university: formData.university,
       createdAt: new Date(),
       followers: 0,
       following: 0,
-      totalViews: 0,
     });
-    
-    // Ensure zero state for new users
-    resetToZeroState();
     
     navigate("/onboarding");
   };
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background px-6 py-8">
-      {/* Beta Badge */}
+      {/* Demo Badge */}
       <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
-        <span className="text-xs font-medium text-primary">Beta</span>
+        <span className="text-xs font-medium text-primary">Demo</span>
       </div>
 
       {/* Back button */}
@@ -64,10 +57,10 @@ export default function Signup() {
         className="mb-8"
       >
         <h1 className="font-display text-3xl font-bold text-foreground mb-2">
-          Join <span className="text-gradient-gold">Dream$</span>
+          Join <span className="text-gradient-gold">DREAMS</span>
         </h1>
         <p className="text-muted-foreground">
-          Start earning from your screen time today.
+          Create your account to get started.
         </p>
       </motion.div>
 
@@ -127,18 +120,6 @@ export default function Signup() {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              University <span className="text-muted-foreground">(optional)</span>
-            </label>
-            <Input
-              type="text"
-              placeholder="e.g. University of Lagos"
-              value={formData.university}
-              onChange={(e) => setFormData({ ...formData, university: e.target.value })}
-            />
           </div>
         </div>
 

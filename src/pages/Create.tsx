@@ -5,8 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
-import { Upload, Film, Hash, CheckCircle2, AlertCircle } from "lucide-react";
-import { useDreamStore, Video } from "@/lib/store";
+import { Upload, Image, Hash, CheckCircle2 } from "lucide-react";
+import { useDreamStore, Post } from "@/lib/store";
 
 const categories = [
   "Entertainment",
@@ -21,12 +21,13 @@ const categories = [
   "Sports",
 ];
 
-// Sample video URLs for simulated uploads
-const sampleVideoUrls = [
-  'https://assets.mixkit.co/videos/preview/mixkit-young-woman-looking-at-the-sunset-1094-large.mp4',
-  'https://assets.mixkit.co/videos/preview/mixkit-people-dancing-at-a-party-4637-large.mp4',
-  'https://assets.mixkit.co/videos/preview/mixkit-chef-preparing-a-plate-in-a-kitchen-8402-large.mp4',
-  'https://assets.mixkit.co/videos/preview/mixkit-woman-doing-yoga-at-home-5095-large.mp4',
+// Sample image URLs for simulated uploads
+const sampleImageUrls = [
+  'https://picsum.photos/seed/upload1/800/1200',
+  'https://picsum.photos/seed/upload2/800/1200',
+  'https://picsum.photos/seed/upload3/800/1200',
+  'https://picsum.photos/seed/upload4/800/1200',
+  'https://picsum.photos/seed/upload5/800/1200',
 ];
 
 export default function Create() {
@@ -35,15 +36,22 @@ export default function Create() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isUploaded, setIsUploaded] = useState(false);
   const [isPosted, setIsPosted] = useState(false);
+  const [selectedImage, setSelectedImage] = useState("");
   
   const user = useDreamStore((state) => state.user);
-  const uploadVideo = useDreamStore((state) => state.uploadVideo);
+  const uploadPost = useDreamStore((state) => state.uploadPost);
+
+  const handleUpload = () => {
+    const randomImage = sampleImageUrls[Math.floor(Math.random() * sampleImageUrls.length)];
+    setSelectedImage(randomImage);
+    setIsUploaded(true);
+  };
 
   const handlePost = () => {
     if (!caption || !selectedCategory) return;
     
-    // Create a new video object
-    const newVideo: Video = {
+    // Create a new post object
+    const newPost: Post = {
       id: `user-${Date.now()}`,
       creator: user?.username || 'dreamer',
       creatorId: user?.id || 'user',
@@ -53,19 +61,13 @@ export default function Create() {
       comments: [],
       saves: 0,
       shares: 0,
-      views: Math.floor(Math.random() * 100), // Start with some views
-      videoUrl: sampleVideoUrls[Math.floor(Math.random() * sampleVideoUrls.length)],
-      thumbnail: '',
+      imageUrl: selectedImage,
       category: 'foryou',
       createdAt: new Date(),
-      isMonetized: false, // User uploads are NOT monetized by default
-      rewardAmount: 0,
-      duration: 15,
     };
     
-    uploadVideo(newVideo);
+    uploadPost(newPost);
     setIsPosted(true);
-    // NO earnings for posting!
   };
 
   const handleReset = () => {
@@ -73,6 +75,7 @@ export default function Create() {
     setSelectedCategory("");
     setIsUploaded(false);
     setIsPosted(false);
+    setSelectedImage("");
   };
 
   if (isPosted) {
@@ -94,40 +97,22 @@ export default function Create() {
             transition={{ delay: 0.2 }}
             className="font-display text-2xl font-bold text-foreground mb-2"
           >
-            Content Posted!
+            Post Created!
           </motion.h2>
           
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="text-muted-foreground text-center mb-4"
+            className="text-muted-foreground text-center mb-6"
           >
-            Your content is now live on Dream$.
+            Your post is now live on DREAMS.
           </motion.p>
           
-          {/* Not monetized notice */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="p-4 rounded-xl bg-secondary border border-border mb-6 max-w-[300px]"
-          >
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Not Monetized</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your video is not eligible for viewer rewards. Only selected sponsored content can be monetized.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
             className="flex gap-3"
           >
             <Button variant="gold-outline" onClick={handleReset}>
@@ -152,25 +137,11 @@ export default function Create() {
           className="mb-6"
         >
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-            Create Content
+            Create Post
           </h1>
           <p className="text-muted-foreground text-sm">
-            Share your creativity with the Dream$ community
+            Share your creativity with the DREAMS community
           </p>
-        </motion.div>
-
-        {/* Info notice */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="mb-6"
-        >
-          <div className="p-3 rounded-xl bg-secondary/50 border border-border">
-            <p className="text-xs text-muted-foreground">
-              📌 Note: User uploads are not monetized. Only sponsored content from brands can generate viewer rewards.
-            </p>
-          </div>
         </motion.div>
 
         {/* Upload Area */}
@@ -184,7 +155,7 @@ export default function Create() {
             <Card variant="gradient" className="border-dashed border-2">
               <CardContent className="p-8">
                 <button
-                  onClick={() => setIsUploaded(true)}
+                  onClick={handleUpload}
                   className="w-full flex flex-col items-center gap-4"
                 >
                   <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center">
@@ -192,16 +163,16 @@ export default function Create() {
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground mb-1">
-                      Upload Video
+                      Upload Image
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Tap to select a video file
+                      Tap to select an image file
                     </p>
                   </div>
                   <div className="flex gap-4 mt-2">
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Film className="w-4 h-4" />
-                      <span className="text-xs">MP4, WebM</span>
+                      <Image className="w-4 h-4" />
+                      <span className="text-xs">JPG, PNG, WebP</span>
                     </div>
                   </div>
                 </button>
@@ -210,21 +181,18 @@ export default function Create() {
           ) : (
             <Card variant="gradient">
               <CardContent className="p-4">
-                <div className="aspect-[9/16] max-h-[300px] rounded-xl bg-secondary flex items-center justify-center relative overflow-hidden">
-                  <video
-                    src={sampleVideoUrls[0]}
+                <div className="aspect-square max-h-[300px] rounded-xl bg-secondary overflow-hidden relative">
+                  <img
+                    src={selectedImage}
+                    alt="Upload preview"
                     className="w-full h-full object-cover"
-                    muted
-                    autoPlay
-                    loop
-                    playsInline
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-background/50 to-transparent" />
                   <div className="absolute bottom-3 left-3 flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-success/80 flex items-center justify-center">
                       <CheckCircle2 className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-sm text-white font-medium">Video ready</span>
+                    <span className="text-sm text-white font-medium">Image ready</span>
                   </div>
                 </div>
               </CardContent>
@@ -243,7 +211,7 @@ export default function Create() {
             Caption
           </label>
           <Input
-            placeholder="Write a caption for your video..."
+            placeholder="Write a caption for your post..."
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             className="h-14"
@@ -291,10 +259,10 @@ export default function Create() {
             onClick={handlePost}
             disabled={!isUploaded || !caption || !selectedCategory}
           >
-            Post Video
+            Post Image
           </Button>
           <p className="text-xs text-muted-foreground text-center mt-3">
-            Your video will appear on your profile and in the For You feed
+            Your post will appear on your profile and in the For You feed
           </p>
         </motion.div>
       </div>
