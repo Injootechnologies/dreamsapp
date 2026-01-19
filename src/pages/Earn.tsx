@@ -1,54 +1,16 @@
-import { useState } from "react";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Play, Video, Trophy, Heart, Share2, CheckCircle2, Coins, Sparkles } from "lucide-react";
-import { mockTasks, useDreamStore } from "@/lib/store";
-
-const iconMap: Record<string, React.ElementType> = {
-  play: Play,
-  video: Video,
-  trophy: Trophy,
-  heart: Heart,
-  share: Share2,
-};
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  amount: number;
-  status: 'available' | 'completed';
-  icon: string;
-}
+import { Play, Coins, Sparkles, Eye } from "lucide-react";
+import { useDreamStore } from "@/lib/store";
+import { useNavigate } from "react-router-dom";
 
 export default function Earn() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks.map(t => ({ ...t, status: 'available' as const })));
-  const addEarning = useDreamStore((state) => state.addEarning);
+  const navigate = useNavigate();
   const totalEarned = useDreamStore((state) => state.totalEarned);
   const availableBalance = useDreamStore((state) => state.availableBalance);
-
-  const completeTask = (taskId: string) => {
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.status === "completed") return;
-
-    // Simulate task completion
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId ? { ...t, status: "completed" as const } : t
-      )
-    );
-
-    addEarning({
-      type: "challenge",
-      amount: task.amount,
-      description: task.title,
-    });
-  };
-
-  const completedCount = tasks.filter((t) => t.status === "completed").length;
-  const totalPossible = tasks.reduce((acc, t) => acc + t.amount, 0);
+  const watchedVideos = useDreamStore((state) => state.watchedVideos);
 
   return (
     <MobileLayout>
@@ -60,14 +22,14 @@ export default function Earn() {
             animate={{ opacity: 1, y: 0 }}
           >
             <h1 className="font-display text-2xl font-bold text-foreground mb-1">
-              Earn More
+              Earn Dream$
             </h1>
             <p className="text-muted-foreground text-sm">
-              Complete tasks to boost your earnings
+              Watch monetized videos to earn rewards
             </p>
           </motion.div>
           <div className="px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
-            <span className="text-xs font-medium text-primary">Beta Rewards</span>
+            <span className="text-xs font-medium text-primary">Beta</span>
           </div>
         </div>
 
@@ -95,22 +57,22 @@ export default function Earn() {
                 </div>
               </div>
               
-              {/* Unlimited beta note */}
+              {/* Beta note */}
               <div className="flex items-center gap-2 p-3 rounded-xl bg-success/10 border border-success/20">
                 <Sparkles className="w-4 h-4 text-success" />
                 <p className="text-xs text-success">
-                  Unlimited beta rewards! No daily cap during testing.
+                  Beta rewards active! Watch monetized videos to earn.
                 </p>
               </div>
               
               <p className="text-xs text-muted-foreground mt-3">
-                {completedCount}/{tasks.length} tasks completed
+                {watchedVideos.size} videos watched
               </p>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Tasks */}
+        {/* How to Earn */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -118,72 +80,81 @@ export default function Earn() {
           className="space-y-3"
         >
           <h2 className="font-display text-lg font-semibold text-foreground mb-3">
-            Available Tasks
+            How to Earn
           </h2>
           
-          {tasks.map((task, index) => {
-            const Icon = iconMap[task.icon] || Play;
-            const isCompleted = task.status === "completed";
+          <Card variant="gradient">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center">
+                  <Eye className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground">Watch Monetized Videos</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Watch 100% of videos marked with 🎯 to earn rewards
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="text-lg font-bold text-gradient-gold">
+                    ₦20-50
+                  </span>
+                  <span className="text-xs text-muted-foreground">per video</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            return (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 + index * 0.1 }}
-              >
-                <Card variant={isCompleted ? "default" : "gradient"} className={isCompleted ? "opacity-60" : ""}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                        isCompleted ? "bg-success/20" : "bg-primary/20"
-                      }`}>
-                        {isCompleted ? (
-                          <CheckCircle2 className="w-6 h-6 text-success" />
-                        ) : (
-                          <Icon className="w-6 h-6 text-primary" />
-                        )}
-                      </div>
-                      
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-foreground">{task.title}</h3>
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
-                      </div>
-                      
-                      <div className="flex flex-col items-end gap-2">
-                        <span className={`text-lg font-bold ${isCompleted ? "text-success" : "text-gradient-gold"}`}>
-                          ₦{task.amount}
-                        </span>
-                        {!isCompleted && (
-                          <Button
-                            variant="gold"
-                            size="sm"
-                            onClick={() => completeTask(task.id)}
-                          >
-                            Start
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            );
-          })}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
+                  <Play className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground">Regular Videos</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Enjoy content - no earning for non-monetized videos
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="text-lg font-bold text-muted-foreground">
+                    ₦0
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
-        {/* Potential earnings note */}
+        {/* CTA */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.4 }}
+          className="mt-6"
+        >
+          <Button 
+            variant="gold" 
+            className="w-full"
+            onClick={() => navigate('/home')}
+          >
+            Start Watching
+          </Button>
+        </motion.div>
+
+        {/* Disclaimer */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
           className="mt-6 p-4 rounded-xl bg-secondary/50 border border-border"
         >
-          <p className="text-sm text-muted-foreground text-center">
-            Complete all tasks to earn <span className="text-primary font-semibold">₦{totalPossible}</span>
+          <p className="text-xs text-muted-foreground text-center">
+            ⚠️ Beta version - Earning structure may change
           </p>
           <p className="text-xs text-muted-foreground text-center mt-1">
-            ⚠️ Beta rewards - final earning structure may change
+            Only monetized videos generate rewards
           </p>
         </motion.div>
       </div>
