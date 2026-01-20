@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, ImageIcon, Users } from "lucide-react";
+import { ArrowLeft, ImageIcon, Users, Eye } from "lucide-react";
 import { demoPosts, creatorProfiles } from "@/lib/store";
 
 export default function CreatorProfile() {
@@ -34,6 +34,17 @@ export default function CreatorProfile() {
       </MobileLayout>
     );
   }
+
+  // Format view count
+  const formatViews = (views: number) => {
+    if (views >= 1000000) {
+      return `${(views / 1000000).toFixed(1)}M`;
+    }
+    if (views >= 1000) {
+      return `${(views / 1000).toFixed(1)}K`;
+    }
+    return views.toString();
+  };
 
   return (
     <MobileLayout>
@@ -72,7 +83,7 @@ export default function CreatorProfile() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="flex justify-center gap-8 mb-6"
+          className="flex justify-center gap-6 mb-6"
         >
           <div className="text-center">
             <p className="text-xl font-bold text-foreground">{creator.followers.toLocaleString()}</p>
@@ -83,8 +94,10 @@ export default function CreatorProfile() {
             <p className="text-xs text-muted-foreground">Following</p>
           </div>
           <div className="text-center">
-            <p className="text-xl font-bold text-foreground">{creatorPosts.length}</p>
-            <p className="text-xs text-muted-foreground">Posts</p>
+            <p className="text-xl font-bold text-foreground">{formatViews(creator.totalViews)}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Eye className="w-3 h-3" /> Views
+            </p>
           </div>
         </motion.div>
 
@@ -108,7 +121,7 @@ export default function CreatorProfile() {
           transition={{ delay: 0.2 }}
         >
           <h2 className="font-display text-lg font-semibold text-foreground mb-4">
-            Posts
+            Posts ({creatorPosts.length})
           </h2>
           
           {creatorPosts.length === 0 ? (
@@ -134,6 +147,11 @@ export default function CreatorProfile() {
                   <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1 rounded">
                     <span>❤️ {post.likes.toLocaleString()}</span>
                   </div>
+                  {post.isMonetized && (
+                    <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                      <span className="text-[8px] text-primary-foreground">$</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

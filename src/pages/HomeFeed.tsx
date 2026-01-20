@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Bookmark, Share2, Send, X, Copy, Check } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Send, X, Copy, Check, DollarSign, Coins } from "lucide-react";
 import { demoPosts, useDreamStore, Post } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,16 +28,22 @@ export default function HomeFeed() {
   const [commentText, setCommentText] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [currentPostIndex, setCurrentPostIndex] = useState(0);
+  const [earningToast, setEarningToast] = useState<{amount: number; id: string} | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastEarnedRef = useRef<Set<string>>(new Set());
   
   const likedPosts = useDreamStore((state) => state.likedPosts);
   const savedPosts = useDreamStore((state) => state.savedPosts);
   const userPosts = useDreamStore((state) => state.userPosts);
+  const availableBalance = useDreamStore((state) => state.availableBalance);
   const toggleLike = useDreamStore((state) => state.toggleLike);
   const toggleSave = useDreamStore((state) => state.toggleSave);
   const addComment = useDreamStore((state) => state.addComment);
   const getPostComments = useDreamStore((state) => state.getPostComments);
+  const earnFromPost = useDreamStore((state) => state.earnFromPost);
+  const hasViewedPost = useDreamStore((state) => state.hasViewedPost);
 
   // Generate infinite feed with shuffled posts
   const generateMorePosts = useCallback((currentPosts: Post[], tab: FeedTab) => {
@@ -62,20 +68,44 @@ export default function HomeFeed() {
       id: `${p.id}-init-${i}`,
     }));
     setPosts(infinitePosts);
+    lastEarnedRef.current = new Set();
   }, [activeTab, userPosts]);
 
-  // Infinite scroll - load more when near bottom
+  // Handle scroll and detect current post for earnings
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
     const scrollTop = container.scrollTop;
     const height = container.clientHeight;
     const scrollHeight = container.scrollHeight;
     
+    // Determine current visible post
+    const postIndex = Math.floor(scrollTop / height);
+    setCurrentPostIndex(postIndex);
+    
+    // Check if we scrolled past a post (post is now above viewport)
+    const postScrolledPast = Math.floor((scrollTop + height * 0.3) / height);
+    
+    if (posts[postScrolledPast - 1]) {
+      const passedPost = posts[postScrolledPast - 1];
+      const baseId = passedPost.id.split('-')[0];
+      
+      // Only earn once per unique post and only if monetized
+      if (passedPost.isMonetized && !lastEarnedRef.current.has(baseId) && !hasViewedPost(passedPost.id)) {
+        lastEarnedRef.current.add(baseId);
+        const amount = earnFromPost(passedPost.id, passedPost.creator);
+        
+        if (amount > 0) {
+          setEarningToast({ amount, id: passedPost.id });
+          setTimeout(() => setEarningToast(null), 2000);
+        }
+      }
+    }
+    
     // Load more posts when 80% scrolled
     if (scrollTop + height >= scrollHeight * 0.8) {
       setPosts(prev => generateMorePosts(prev, activeTab));
     }
-  }, [activeTab, generateMorePosts]);
+  }, [activeTab, generateMorePosts, posts, earnFromPost, hasViewedPost]);
 
   const handleLike = (postId: string) => {
     const baseId = postId.split('-')[0];
@@ -143,12 +173,30 @@ export default function HomeFeed() {
             ))}
           </div>
           
-          {/* Demo badge */}
-          <div className="px-2 py-1 rounded-full bg-primary/20 border border-primary/50">
-            <span className="text-[10px] font-medium text-primary">Demo</span>
+          {/* Balance badge */}
+          <div className="px-2 py-1 rounded-full bg-primary/20 border border-primary/50 flex items-center gap-1">
+            <Coins className="w-3 h-3 text-primary" />
+            <span className="text-[10px] font-medium text-primary">₦{availableBalance}</span>
           </div>
         </div>
       </div>
+
+      {/* Earning Toast */}
+      <AnimatePresence>
+        {earningToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.8 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50"
+          >
+            <div className="px-4 py-2 rounded-full bg-gradient-to-r from-primary to-amber-500 text-primary-foreground font-bold text-sm flex items-center gap-2 shadow-lg">
+              <Coins className="w-4 h-4" />
+              ₦{earningToast.amount} earned (demo)
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Image Feed */}
       <div
@@ -157,11 +205,12 @@ export default function HomeFeed() {
         className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
         style={{ scrollSnapType: 'y mandatory' }}
       >
-        {posts.map((post) => {
+        {posts.map((post, index) => {
           const baseId = post.id.split('-')[0];
           const isLiked = likedPosts.has(baseId);
           const isSaved = savedPosts.has(baseId);
           const comments = getPostComments(baseId);
+          const alreadyViewed = hasViewedPost(post.id);
           
           return (
             <div
@@ -178,6 +227,29 @@ export default function HomeFeed() {
               />
               
               <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+
+              {/* Monetization Label */}
+              <div className="absolute top-20 left-4 z-20">
+                <div className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 ${
+                  post.isMonetized 
+                    ? 'bg-gradient-to-r from-primary/90 to-amber-500/90 text-primary-foreground' 
+                    : 'bg-secondary/90 text-muted-foreground'
+                }`}>
+                  {post.isMonetized ? (
+                    <>
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span className="text-xs font-semibold">Monetized</span>
+                      {alreadyViewed && (
+                        <Check className="w-3 h-3 ml-1" />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium">Not Monetized</span>
+                    </>
+                  )}
+                </div>
+              </div>
 
               {/* Content overlay */}
               <div className="relative z-10 w-full p-4 pb-24">

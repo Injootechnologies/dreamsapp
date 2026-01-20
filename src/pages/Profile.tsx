@@ -4,7 +4,7 @@ import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Settings, Grid, Heart, Image } from "lucide-react";
+import { Settings, Grid, Heart, Image, Eye } from "lucide-react";
 import { useDreamStore, demoPosts } from "@/lib/store";
 
 type ProfileTab = 'posts' | 'liked';
@@ -16,9 +16,13 @@ export default function Profile() {
   const user = useDreamStore((state) => state.user);
   const userPosts = useDreamStore((state) => state.userPosts);
   const likedPosts = useDreamStore((state) => state.likedPosts);
+  const totalEarned = useDreamStore((state) => state.totalEarned);
 
   // Get liked posts data
   const likedPostsList = demoPosts.filter(p => likedPosts.has(p.id));
+
+  // Calculate total views (demo: sum of likes * 10 for posts)
+  const totalViews = userPosts.reduce((acc, post) => acc + post.likes * 10, 0);
 
   return (
     <MobileLayout>
@@ -65,7 +69,7 @@ export default function Profile() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="flex justify-center gap-8 mb-6"
+          className="flex justify-center gap-6 mb-6"
         >
           <div className="text-center">
             <p className="text-xl font-bold text-foreground">{user?.followers || 0}</p>
@@ -79,6 +83,34 @@ export default function Profile() {
             <p className="text-xl font-bold text-foreground">{userPosts.length}</p>
             <p className="text-xs text-muted-foreground">Posts</p>
           </div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center">
+              <Eye className="w-3 h-3" /> Views
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Earnings Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6"
+        >
+          <Card variant="gradient">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Demo Earnings</p>
+                  <p className="font-bold text-lg text-gradient-gold">₦{totalEarned.toLocaleString()}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => navigate("/wallet")}>
+                  View Wallet
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Tabs */}
@@ -149,6 +181,11 @@ export default function Profile() {
                       <Heart className="w-3 h-3" />
                       <span>{post.likes}</span>
                     </div>
+                    {post.isMonetized && (
+                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                        <span className="text-[8px] text-primary-foreground">$</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

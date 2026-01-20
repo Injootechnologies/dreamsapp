@@ -1,5 +1,4 @@
-// DREAMS State Management - Concept Demo
-// Image-based social feed platform (NO monetization in this demo)
+// DREAMS State Management - Demo MVP with Monetization
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -29,6 +28,7 @@ export interface Post {
   imageUrl: string;
   category: 'foryou' | 'following' | 'explore';
   createdAt: Date;
+  isMonetized: boolean;
 }
 
 export interface Comment {
@@ -38,6 +38,14 @@ export interface Comment {
   text: string;
   createdAt: Date;
   likes: number;
+}
+
+export interface EarningRecord {
+  id: string;
+  postId: string;
+  creatorUsername: string;
+  amount: number;
+  createdAt: Date;
 }
 
 export interface WithdrawalRequest {
@@ -58,10 +66,14 @@ interface DreamStore {
   isAuthenticated: boolean;
   hasCompletedOnboarding: boolean;
   
-  // Wallet (demo only - always ₦0)
+  // Wallet - Demo earnings
   availableBalance: number;
   totalEarned: number;
   totalWithdrawn: number;
+  earningsHistory: EarningRecord[];
+  
+  // Track viewed posts for earnings (prevent double earn)
+  viewedPosts: Set<string>;
   
   // Interactions
   likedPosts: Set<string>;
@@ -88,6 +100,10 @@ interface DreamStore {
   addComment: (postId: string, text: string) => void;
   getPostComments: (postId: string) => Comment[];
   
+  // Earnings
+  earnFromPost: (postId: string, creatorUsername: string) => number;
+  hasViewedPost: (postId: string) => boolean;
+  
   // Content
   uploadPost: (post: Post) => void;
   
@@ -101,6 +117,9 @@ const arrayToSet = (arr: string[]): Set<string> => new Set(arr);
 const mapToArray = (map: Map<string, any>): [string, any][] => Array.from(map.entries());
 const arrayToMap = <T>(arr: [string, T][]): Map<string, T> => new Map(arr);
 
+// Random earning between ₦5 and ₦20
+const getRandomEarning = () => Math.floor(Math.random() * 16) + 5;
+
 export const useDreamStore = create<DreamStore>()(
   persist(
     (set, get) => ({
@@ -111,6 +130,8 @@ export const useDreamStore = create<DreamStore>()(
       availableBalance: 0,
       totalEarned: 0,
       totalWithdrawn: 0,
+      earningsHistory: [],
+      viewedPosts: new Set(),
       withdrawalHistory: [],
       userPosts: [],
       likedPosts: new Set(),
@@ -187,6 +208,44 @@ export const useDreamStore = create<DreamStore>()(
         return state.postComments.get(postId) || [];
       },
       
+      // Earning from scrolling past monetized posts
+      earnFromPost: (postId, creatorUsername) => {
+        const state = get();
+        const baseId = postId.split('-')[0];
+        
+        // Already viewed this post
+        if (state.viewedPosts.has(baseId)) {
+          return 0;
+        }
+        
+        const amount = getRandomEarning();
+        const newViewed = new Set(state.viewedPosts);
+        newViewed.add(baseId);
+        
+        const earning: EarningRecord = {
+          id: Math.random().toString(36).substr(2, 9),
+          postId: baseId,
+          creatorUsername,
+          amount,
+          createdAt: new Date(),
+        };
+        
+        set({
+          viewedPosts: newViewed,
+          availableBalance: state.availableBalance + amount,
+          totalEarned: state.totalEarned + amount,
+          earningsHistory: [earning, ...state.earningsHistory],
+        });
+        
+        return amount;
+      },
+      
+      hasViewedPost: (postId) => {
+        const state = get();
+        const baseId = postId.split('-')[0];
+        return state.viewedPosts.has(baseId);
+      },
+      
       uploadPost: (post) => {
         const state = get();
         set({
@@ -215,11 +274,12 @@ export const useDreamStore = create<DreamStore>()(
       },
     }),
     {
-      name: 'dream-storage-v3',
+      name: 'dream-storage-v4',
       partialize: (state) => ({
         ...state,
         likedPosts: setToArray(state.likedPosts),
         savedPosts: setToArray(state.savedPosts),
+        viewedPosts: setToArray(state.viewedPosts),
         postComments: mapToArray(state.postComments),
       }),
       merge: (persistedState: any, currentState) => ({
@@ -227,13 +287,14 @@ export const useDreamStore = create<DreamStore>()(
         ...persistedState,
         likedPosts: arrayToSet(persistedState?.likedPosts || []),
         savedPosts: arrayToSet(persistedState?.savedPosts || []),
+        viewedPosts: arrayToSet(persistedState?.viewedPosts || []),
         postComments: arrayToMap(persistedState?.postComments || []),
       }),
     }
   )
 );
 
-// 30+ Demo posts with Picsum images
+// 30+ Demo posts with Picsum images - WITH MONETIZATION
 export const demoPosts: Post[] = [
   // FOR YOU
   {
@@ -249,6 +310,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/lagos1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy2',
@@ -263,6 +325,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/tech1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy3',
@@ -277,6 +340,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/food1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'fy4',
@@ -291,6 +355,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/dance1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy5',
@@ -305,6 +370,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/student1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'fy6',
@@ -319,6 +385,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/comedy1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy7',
@@ -333,6 +400,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/traffic1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy8',
@@ -347,6 +415,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/makeup1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'fy9',
@@ -361,6 +430,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/fitness1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fy10',
@@ -375,6 +445,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/suya1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
+    isMonetized: true,
   },
   // FOLLOWING
   {
@@ -390,6 +461,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/fave1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fl2',
@@ -404,6 +476,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/mama1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fl3',
@@ -418,6 +491,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/hustle1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'fl4',
@@ -432,6 +506,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/music1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fl5',
@@ -446,6 +521,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/coding1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'fl6',
@@ -460,6 +536,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/ankara1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'fl7',
@@ -474,6 +551,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/beach1/800/1200',
     category: 'following',
     createdAt: new Date(),
+    isMonetized: true,
   },
   // EXPLORE
   {
@@ -489,6 +567,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/gems1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex2',
@@ -503,6 +582,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/workout1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex3',
@@ -517,6 +597,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/style1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'ex4',
@@ -531,6 +612,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/crypto1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex5',
@@ -545,6 +627,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/puffpuff1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex6',
@@ -559,6 +642,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/braids1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'ex7',
@@ -573,6 +657,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/poetry1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex8',
@@ -587,6 +672,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/pets1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
   {
     id: 'ex9',
@@ -601,6 +687,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/diy1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: false,
   },
   {
     id: 'ex10',
@@ -615,6 +702,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/gaming1/800/1200',
     category: 'explore',
     createdAt: new Date(),
+    isMonetized: true,
   },
 ];
 
@@ -670,7 +758,7 @@ export const nigerianBanks = [
   'Trustbanc J6 Microfinance Bank',
 ];
 
-// Creator profiles for demo
+// Creator profiles for demo - with totalViews
 export const creatorProfiles: Record<string, {
   id: string;
   username: string;
@@ -678,25 +766,33 @@ export const creatorProfiles: Record<string, {
   followers: number;
   following: number;
   avatar: string;
+  totalViews: number;
 }> = {
-  'u1': { id: 'u1', username: 'chioma_vibes', bio: 'Lagos babe 🌃 Content creator', followers: 45000, following: 234, avatar: 'CV' },
-  'u2': { id: 'u2', username: 'tech_adebayo', bio: 'Tech entrepreneur 💻', followers: 120000, following: 567, avatar: 'TA' },
-  'u3': { id: 'u3', username: 'amaka_cooks', bio: 'Nigerian food blogger 🍚', followers: 32000, following: 189, avatar: 'AC' },
-  'u4': { id: 'u4', username: 'dance_king_ng', bio: 'Professional dancer 🕺', followers: 230000, following: 890, avatar: 'DK' },
-  'u5': { id: 'u5', username: 'unilag_babe', bio: 'Final year student 📚', followers: 18000, following: 456, avatar: 'UB' },
-  'u6': { id: 'u6', username: 'fave_creator', bio: 'Your favorite creator 💕', followers: 78000, following: 234, avatar: 'FC' },
-  'u7': { id: 'u7', username: 'naija_comedy', bio: 'Comedy content 😂', followers: 450000, following: 123, avatar: 'NC' },
-  'u8': { id: 'u8', username: 'lagos_hustler', bio: 'Entrepreneur | Motivator 💪🏾', followers: 95000, following: 345, avatar: 'LH' },
-  'u9': { id: 'u9', username: 'travel_ng', bio: 'Exploring Nigeria 🌴', followers: 180000, following: 567, avatar: 'TN' },
-  'u10': { id: 'u10', username: 'fit_naija', bio: 'Fitness coach 💪', followers: 145000, following: 234, avatar: 'FN' },
-  'u11': { id: 'u11', username: 'style_queen', bio: 'Fashion & Style 👗', followers: 290000, following: 456, avatar: 'SQ' },
-  'u20': { id: 'u20', username: 'naija_comedy_king', bio: 'Making Nigeria laugh 😂', followers: 890000, following: 120, avatar: 'NC' },
-  'u21': { id: 'u21', username: 'lagos_traffic_tales', bio: 'Daily traffic chronicles 🚗', followers: 120000, following: 340, avatar: 'LT' },
-  'u22': { id: 'u22', username: 'makeup_by_funke', bio: 'MUA | Beauty tips 💄', followers: 95000, following: 280, avatar: 'MF' },
-  'u23': { id: 'u23', username: 'fit_naija_boy', bio: 'Fitness trainer 💪🏾', followers: 156000, following: 200, avatar: 'FN' },
-  'u24': { id: 'u24', username: 'abuja_foodie', bio: 'Food explorer 🍖', followers: 67000, following: 450, avatar: 'AF' },
-  'u25': { id: 'u25', username: 'music_maestro', bio: 'Producer | Artist 🎵', followers: 234000, following: 180, avatar: 'MM' },
-  'u26': { id: 'u26', username: 'tech_sis', bio: 'Software Developer 💻', followers: 78000, following: 340, avatar: 'TS' },
-  'u27': { id: 'u27', username: 'fashion_plug_ng', bio: 'Your fashion connect 🧵', followers: 167000, following: 290, avatar: 'FP' },
-  'u28': { id: 'u28', username: 'travel_ng_', bio: 'Travel blogger 🌴', followers: 234000, following: 450, avatar: 'TN' },
+  'u1': { id: 'u1', username: 'chioma_vibes', bio: 'Lagos babe 🌃 Content creator', followers: 45000, following: 234, avatar: 'CV', totalViews: 1240000 },
+  'u2': { id: 'u2', username: 'tech_adebayo', bio: 'Tech entrepreneur 💻', followers: 120000, following: 567, avatar: 'TA', totalViews: 4520000 },
+  'u3': { id: 'u3', username: 'amaka_cooks', bio: 'Nigerian food blogger 🍚', followers: 32000, following: 189, avatar: 'AC', totalViews: 890000 },
+  'u4': { id: 'u4', username: 'dance_king_ng', bio: 'Professional dancer 🕺', followers: 230000, following: 890, avatar: 'DK', totalViews: 6780000 },
+  'u5': { id: 'u5', username: 'unilag_babe', bio: 'Final year student 📚', followers: 18000, following: 456, avatar: 'UB', totalViews: 560000 },
+  'u6': { id: 'u6', username: 'fave_creator', bio: 'Your favorite creator 💕', followers: 78000, following: 234, avatar: 'FC', totalViews: 2340000 },
+  'u7': { id: 'u7', username: 'naija_comedy', bio: 'Comedy content 😂', followers: 450000, following: 123, avatar: 'NC', totalViews: 8900000 },
+  'u8': { id: 'u8', username: 'lagos_hustler', bio: 'Entrepreneur | Motivator 💪🏾', followers: 95000, following: 345, avatar: 'LH', totalViews: 3450000 },
+  'u9': { id: 'u9', username: 'travel_ng', bio: 'Exploring Nigeria 🌴', followers: 180000, following: 567, avatar: 'TN', totalViews: 5670000 },
+  'u10': { id: 'u10', username: 'fit_naija', bio: 'Fitness coach 💪', followers: 145000, following: 234, avatar: 'FN', totalViews: 4230000 },
+  'u11': { id: 'u11', username: 'style_queen', bio: 'Fashion & Style 👗', followers: 290000, following: 456, avatar: 'SQ', totalViews: 7890000 },
+  'u20': { id: 'u20', username: 'naija_comedy_king', bio: 'Making Nigeria laugh 😂', followers: 890000, following: 120, avatar: 'NC', totalViews: 15600000 },
+  'u21': { id: 'u21', username: 'lagos_traffic_tales', bio: 'Daily traffic chronicles 🚗', followers: 120000, following: 340, avatar: 'LT', totalViews: 3400000 },
+  'u22': { id: 'u22', username: 'makeup_by_funke', bio: 'MUA | Beauty tips 💄', followers: 95000, following: 280, avatar: 'MF', totalViews: 2800000 },
+  'u23': { id: 'u23', username: 'fit_naija_boy', bio: 'Fitness trainer 💪🏾', followers: 156000, following: 200, avatar: 'FN', totalViews: 4200000 },
+  'u24': { id: 'u24', username: 'abuja_foodie', bio: 'Food explorer 🍖', followers: 67000, following: 450, avatar: 'AF', totalViews: 1560000 },
+  'u25': { id: 'u25', username: 'music_maestro', bio: 'Producer | Artist 🎵', followers: 234000, following: 180, avatar: 'MM', totalViews: 6700000 },
+  'u26': { id: 'u26', username: 'tech_sis', bio: 'Software Developer 💻', followers: 78000, following: 340, avatar: 'TS', totalViews: 1890000 },
+  'u27': { id: 'u27', username: 'fashion_plug_ng', bio: 'Your fashion connect 🧵', followers: 167000, following: 290, avatar: 'FP', totalViews: 4500000 },
+  'u28': { id: 'u28', username: 'travel_ng_', bio: 'Travel blogger 🌴', followers: 234000, following: 450, avatar: 'TN', totalViews: 5600000 },
+  'u29': { id: 'u29', username: 'crypto_naija', bio: 'Crypto educator 💰', followers: 89000, following: 200, avatar: 'CN', totalViews: 3400000 },
+  'u30': { id: 'u30', username: 'small_chops_queen', bio: 'Small chops & baking 🍩', followers: 56000, following: 180, avatar: 'SC', totalViews: 2300000 },
+  'u31': { id: 'u31', username: 'hair_by_nkechi', bio: 'Hairstylist 💇🏾‍♀️', followers: 145000, following: 250, avatar: 'HN', totalViews: 6700000 },
+  'u32': { id: 'u32', username: 'spoken_word_ng', bio: 'Poet | Writer 📝', followers: 234000, following: 320, avatar: 'SW', totalViews: 8900000 },
+  'u33': { id: 'u33', username: 'pet_lover_ng', bio: 'Dog mom 🐕', followers: 98000, following: 450, avatar: 'PL', totalViews: 4500000 },
+  'u34': { id: 'u34', username: 'diy_nigeria', bio: 'DIY & Home decor 🏠', followers: 78000, following: 280, avatar: 'DI', totalViews: 3400000 },
+  'u35': { id: 'u35', username: 'game_reviews_ng', bio: 'Gaming content 🎮', followers: 67000, following: 340, avatar: 'GR', totalViews: 2800000 },
 };
