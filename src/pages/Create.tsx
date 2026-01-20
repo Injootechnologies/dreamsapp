@@ -63,6 +63,7 @@ export default function Create() {
       shares: 0,
       imageUrl: selectedImage,
       category: 'foryou',
+      isMonetized: false,
       createdAt: new Date(),
     };
     
