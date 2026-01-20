@@ -2,8 +2,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { ArrowLeft, Play, Users } from "lucide-react";
-import { demoVideos, creatorProfiles } from "@/lib/store";
+import { ArrowLeft, ImageIcon, Users } from "lucide-react";
+import { demoPosts, creatorProfiles } from "@/lib/store";
 
 export default function CreatorProfile() {
   const { id } = useParams<{ id: string }>();
@@ -12,8 +12,8 @@ export default function CreatorProfile() {
   // Get creator info
   const creator = id ? creatorProfiles[id] : null;
   
-  // Get creator's videos
-  const creatorVideos = demoVideos.filter(v => v.creatorId === id);
+  // Get creator's posts
+  const creatorPosts = demoPosts.filter(p => p.creatorId === id);
   
   if (!creator) {
     return (
@@ -83,8 +83,8 @@ export default function CreatorProfile() {
             <p className="text-xs text-muted-foreground">Following</p>
           </div>
           <div className="text-center">
-            <p className="text-xl font-bold text-foreground">{creator.totalViews.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Views</p>
+            <p className="text-xl font-bold text-foreground">{creatorPosts.length}</p>
+            <p className="text-xs text-muted-foreground">Posts</p>
           </div>
         </motion.div>
 
@@ -101,45 +101,39 @@ export default function CreatorProfile() {
           </Button>
         </motion.div>
 
-        {/* Videos Grid */}
+        {/* Posts Grid */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
           <h2 className="font-display text-lg font-semibold text-foreground mb-4">
-            Videos
+            Posts
           </h2>
           
-          {creatorVideos.length === 0 ? (
+          {creatorPosts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                <Play className="w-8 h-8 text-muted-foreground" />
+                <ImageIcon className="w-8 h-8 text-muted-foreground" />
               </div>
-              <p className="text-foreground font-medium">No videos yet</p>
+              <p className="text-foreground font-medium">No posts yet</p>
             </div>
           ) : (
             <div className="grid grid-cols-3 gap-1">
-              {creatorVideos.map((video) => (
+              {creatorPosts.map((post) => (
                 <div
-                  key={video.id}
-                  className="aspect-[9/16] bg-secondary rounded-lg overflow-hidden relative cursor-pointer"
+                  key={post.id}
+                  className="aspect-square bg-secondary rounded-lg overflow-hidden relative cursor-pointer"
                   onClick={() => navigate("/home")}
                 >
-                  <video
-                    src={video.videoUrl}
+                  <img
+                    src={post.imageUrl}
+                    alt={post.caption}
                     className="w-full h-full object-cover"
-                    muted
                   />
-                  <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs">
-                    <Play className="w-3 h-3" />
-                    <span>{video.views.toLocaleString()}</span>
+                  <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1 rounded">
+                    <span>❤️ {post.likes.toLocaleString()}</span>
                   </div>
-                  {video.isMonetized && (
-                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-primary/80 text-[10px] text-primary-foreground">
-                      🎯 ₦{video.rewardAmount}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
