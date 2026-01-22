@@ -147,9 +147,9 @@ export default function CreatorProfile() {
                   <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1 rounded">
                     <span>❤️ {post.likes.toLocaleString()}</span>
                   </div>
-                  {post.isMonetized && (
-                    <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                      <span className="text-[8px] text-primary-foreground">$</span>
+                  {post.eligibleAmount > 0 && (
+                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-primary text-[8px] text-primary-foreground font-medium">
+                      ₦{post.eligibleAmount}
                     </div>
                   )}
                 </div>
