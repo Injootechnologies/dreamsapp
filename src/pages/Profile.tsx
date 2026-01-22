@@ -1,22 +1,26 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Settings, Grid, Heart, Image, Eye } from "lucide-react";
+import { Settings, Grid, Heart, Image, Eye, Camera } from "lucide-react";
 import { useDreamStore, demoPosts } from "@/lib/store";
+import { toast } from "sonner";
 
 type ProfileTab = 'posts' | 'liked';
 
 export default function Profile() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const user = useDreamStore((state) => state.user);
   const userPosts = useDreamStore((state) => state.userPosts);
   const likedPosts = useDreamStore((state) => state.likedPosts);
   const totalEarned = useDreamStore((state) => state.totalEarned);
+  const followingUsers = useDreamStore((state) => state.followingUsers);
+  const updateProfile = useDreamStore((state) => state.updateProfile);
 
   // Get liked posts data
   const likedPostsList = demoPosts.filter(p => likedPosts.has(p.id));
@@ -24,9 +28,35 @@ export default function Profile() {
   // Calculate total views (demo: sum of likes * 10 for posts)
   const totalViews = userPosts.reduce((acc, post) => acc + post.likes * 10, 0);
 
+  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select an image file");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        updateProfile({ profilePhoto: e.target?.result as string });
+        toast.success("Profile photo updated!");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleProfilePhotoChange}
+          className="hidden"
+        />
+
         {/* Header with settings */}
         <div className="flex justify-end mb-4">
           <button
@@ -44,23 +74,42 @@ export default function Profile() {
           className="flex flex-col items-center mb-6"
         >
           <div className="relative mb-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center">
-              <span className="text-4xl font-bold text-primary-foreground">
-                {user?.username?.charAt(0).toUpperCase() || "D"}
-              </span>
-            </div>
+            {user?.profilePhoto ? (
+              <div className="w-24 h-24 rounded-full overflow-hidden">
+                <img
+                  src={user.profilePhoto}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center">
+                <span className="text-4xl font-bold text-primary-foreground">
+                  {user?.username?.charAt(0).toUpperCase() || "D"}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center border-2 border-background"
+            >
+              <Camera className="w-4 h-4 text-primary-foreground" />
+            </button>
           </div>
 
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">
             @{user?.username || "dreamer"}
           </h1>
+          {user?.fullName && (
+            <p className="text-sm text-muted-foreground mb-1">{user.fullName}</p>
+          )}
           <p className="text-muted-foreground text-sm text-center max-w-[250px]">
             {user?.bio || "DREAMS Creator"}
           </p>
           
           {/* Demo badge */}
           <div className="mt-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
-            <span className="text-xs font-medium text-primary">Demo Account</span>
+            <span className="text-xs font-medium text-primary">Beta Account</span>
           </div>
         </motion.div>
 
@@ -69,14 +118,14 @@ export default function Profile() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="flex justify-center gap-6 mb-6"
+          className="flex justify-center gap-4 mb-6"
         >
           <div className="text-center">
             <p className="text-xl font-bold text-foreground">{user?.followers || 0}</p>
             <p className="text-xs text-muted-foreground">Followers</p>
           </div>
           <div className="text-center">
-            <p className="text-xl font-bold text-foreground">{user?.following || 0}</p>
+            <p className="text-xl font-bold text-foreground">{followingUsers.size}</p>
             <p className="text-xs text-muted-foreground">Following</p>
           </div>
           <div className="text-center">
@@ -181,9 +230,9 @@ export default function Profile() {
                       <Heart className="w-3 h-3" />
                       <span>{post.likes}</span>
                     </div>
-                    {post.isMonetized && (
-                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-[8px] text-primary-foreground">$</span>
+                    {post.eligibleAmount > 0 && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-primary text-[8px] text-primary-foreground font-medium">
+                        ₦{post.eligibleAmount}
                       </div>
                     )}
                   </div>

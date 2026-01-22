@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { Upload, Image, Hash, CheckCircle2 } from "lucide-react";
+import { Upload, Image, Hash, CheckCircle2, X, Camera } from "lucide-react";
 import { useDreamStore, Post } from "@/lib/store";
+import { toast } from "sonner";
 
 const categories = [
   "Entertainment",
@@ -21,34 +23,67 @@ const categories = [
   "Sports",
 ];
 
-// Sample image URLs for simulated uploads
-const sampleImageUrls = [
-  'https://picsum.photos/seed/upload1/800/1200',
-  'https://picsum.photos/seed/upload2/800/1200',
-  'https://picsum.photos/seed/upload3/800/1200',
-  'https://picsum.photos/seed/upload4/800/1200',
-  'https://picsum.photos/seed/upload5/800/1200',
-];
-
 export default function Create() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [caption, setCaption] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [isUploaded, setIsUploaded] = useState(false);
   const [isPosted, setIsPosted] = useState(false);
-  const [selectedImage, setSelectedImage] = useState("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   
   const user = useDreamStore((state) => state.user);
   const uploadPost = useDreamStore((state) => state.uploadPost);
 
-  const handleUpload = () => {
-    const randomImage = sampleImageUrls[Math.floor(Math.random() * sampleImageUrls.length)];
-    setSelectedImage(randomImage);
-    setIsUploaded(true);
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select an image file");
+        return;
+      }
+      
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Image size must be less than 10MB");
+        return;
+      }
+      
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setSelectedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handlePost = () => {
-    if (!caption || !selectedCategory) return;
+    if (!caption.trim()) {
+      toast.error("Please add a caption for your post");
+      return;
+    }
+    if (!selectedCategory) {
+      toast.error("Please select a category");
+      return;
+    }
+    if (!selectedImage) {
+      toast.error("Please upload an image");
+      return;
+    }
     
     // Create a new post object
     const newPost: Post = {
@@ -56,27 +91,31 @@ export default function Create() {
       creator: user?.username || 'dreamer',
       creatorId: user?.id || 'user',
       creatorAvatar: user?.username?.charAt(0).toUpperCase() || 'D',
-      caption: caption,
+      caption: caption.trim(),
       likes: 0,
       comments: [],
       saves: 0,
       shares: 0,
       imageUrl: selectedImage,
       category: 'foryou',
-      isMonetized: false,
+      eligibleAmount: 0, // User posts start as not eligible
       createdAt: new Date(),
     };
     
     uploadPost(newPost);
     setIsPosted(true);
+    toast.success("Post created successfully!");
   };
 
   const handleReset = () => {
     setCaption("");
     setSelectedCategory("");
-    setIsUploaded(false);
+    setSelectedImage(null);
+    setImageFile(null);
     setIsPosted(false);
-    setSelectedImage("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   if (isPosted) {
@@ -145,6 +184,15 @@ export default function Create() {
           </p>
         </motion.div>
 
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
         {/* Upload Area */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -152,22 +200,22 @@ export default function Create() {
           transition={{ delay: 0.1 }}
           className="mb-6"
         >
-          {!isUploaded ? (
+          {!selectedImage ? (
             <Card variant="gradient" className="border-dashed border-2">
               <CardContent className="p-8">
                 <button
-                  onClick={handleUpload}
+                  onClick={handleUploadClick}
                   className="w-full flex flex-col items-center gap-4"
                 >
                   <div className="w-20 h-20 rounded-2xl bg-primary/20 flex items-center justify-center">
-                    <Upload className="w-10 h-10 text-primary" />
+                    <Camera className="w-10 h-10 text-primary" />
                   </div>
                   <div className="text-center">
                     <p className="font-semibold text-foreground mb-1">
-                      Upload Image
+                      Upload from Gallery
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Tap to select an image file
+                      Tap to select an image from your device
                     </p>
                   </div>
                   <div className="flex gap-4 mt-2">
@@ -188,12 +236,17 @@ export default function Create() {
                     alt="Upload preview"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/50 to-transparent" />
+                  <button
+                    onClick={handleRemoveImage}
+                    className="absolute top-2 right-2 w-8 h-8 rounded-full bg-background/80 flex items-center justify-center hover:bg-background transition-colors"
+                  >
+                    <X className="w-4 h-4 text-foreground" />
+                  </button>
                   <div className="absolute bottom-3 left-3 flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-success/80 flex items-center justify-center">
                       <CheckCircle2 className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-sm text-white font-medium">Image ready</span>
+                    <span className="text-sm text-white font-medium drop-shadow">Image ready</span>
                   </div>
                 </div>
               </CardContent>
@@ -209,14 +262,18 @@ export default function Create() {
           className="mb-6"
         >
           <label className="text-sm font-medium text-foreground mb-2 block">
-            Caption
+            Caption <span className="text-destructive">*</span>
           </label>
-          <Input
-            placeholder="Write a caption for your post..."
+          <Textarea
+            placeholder="Write a caption that matches your image..."
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            className="h-14"
+            className="min-h-[100px] resize-none"
+            maxLength={500}
           />
+          <p className="text-xs text-muted-foreground mt-1 text-right">
+            {caption.length}/500
+          </p>
         </motion.div>
 
         {/* Category */}
@@ -228,7 +285,7 @@ export default function Create() {
         >
           <label className="text-sm font-medium text-foreground mb-3 block flex items-center gap-2">
             <Hash className="w-4 h-4" />
-            Select Category
+            Select Category <span className="text-destructive">*</span>
           </label>
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
@@ -258,7 +315,7 @@ export default function Create() {
             size="xl"
             className="w-full"
             onClick={handlePost}
-            disabled={!isUploaded || !caption || !selectedCategory}
+            disabled={!selectedImage || !caption.trim() || !selectedCategory}
           >
             Post Image
           </Button>

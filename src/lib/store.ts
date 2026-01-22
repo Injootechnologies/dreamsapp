@@ -1,10 +1,11 @@
-// DREAMS State Management - Demo MVP with Monetization
+// DREAMS State Management - Demo MVP with Monetization & Following
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 // Types
 export interface User {
   id: string;
+  fullName: string; // Legal name for withdrawals
   username: string;
   email: string;
   phone?: string;
@@ -28,7 +29,7 @@ export interface Post {
   imageUrl: string;
   category: 'foryou' | 'following' | 'explore';
   createdAt: Date;
-  isMonetized: boolean;
+  eligibleAmount: number; // 0 = not eligible, 10/15/20 = eligible amounts
 }
 
 export interface Comment {
@@ -75,6 +76,9 @@ interface DreamStore {
   // Track viewed posts for earnings (prevent double earn)
   viewedPosts: Set<string>;
   
+  // Following system
+  followingUsers: Set<string>; // Set of creatorIds
+  
   // Interactions
   likedPosts: Set<string>;
   savedPosts: Set<string>;
@@ -94,6 +98,10 @@ interface DreamStore {
   completeOnboarding: () => void;
   updateProfile: (updates: Partial<User>) => void;
   
+  // Following
+  toggleFollow: (creatorId: string) => void;
+  isFollowing: (creatorId: string) => boolean;
+  
   // Interactions
   toggleLike: (postId: string) => void;
   toggleSave: (postId: string) => void;
@@ -101,7 +109,7 @@ interface DreamStore {
   getPostComments: (postId: string) => Comment[];
   
   // Earnings
-  earnFromPost: (postId: string, creatorUsername: string) => number;
+  earnFromPost: (postId: string, creatorUsername: string, amount: number) => number;
   hasViewedPost: (postId: string) => boolean;
   
   // Content
@@ -117,9 +125,6 @@ const arrayToSet = (arr: string[]): Set<string> => new Set(arr);
 const mapToArray = (map: Map<string, any>): [string, any][] => Array.from(map.entries());
 const arrayToMap = <T>(arr: [string, T][]): Map<string, T> => new Map(arr);
 
-// Random earning between ₦5 and ₦20
-const getRandomEarning = () => Math.floor(Math.random() * 16) + 5;
-
 export const useDreamStore = create<DreamStore>()(
   persist(
     (set, get) => ({
@@ -132,6 +137,7 @@ export const useDreamStore = create<DreamStore>()(
       totalWithdrawn: 0,
       earningsHistory: [],
       viewedPosts: new Set(),
+      followingUsers: new Set(),
       withdrawalHistory: [],
       userPosts: [],
       likedPosts: new Set(),
@@ -156,6 +162,24 @@ export const useDreamStore = create<DreamStore>()(
         if (state.user) {
           set({ user: { ...state.user, ...updates } });
         }
+      },
+      
+      // Following actions
+      toggleFollow: (creatorId) => {
+        const state = get();
+        const newFollowing = new Set(state.followingUsers);
+        
+        if (newFollowing.has(creatorId)) {
+          newFollowing.delete(creatorId);
+        } else {
+          newFollowing.add(creatorId);
+        }
+        
+        set({ followingUsers: newFollowing });
+      },
+      
+      isFollowing: (creatorId) => {
+        return get().followingUsers.has(creatorId);
       },
       
       // Interaction actions
@@ -208,17 +232,16 @@ export const useDreamStore = create<DreamStore>()(
         return state.postComments.get(postId) || [];
       },
       
-      // Earning from scrolling past monetized posts
-      earnFromPost: (postId, creatorUsername) => {
+      // Earning from fully viewing eligible posts
+      earnFromPost: (postId, creatorUsername, amount) => {
         const state = get();
         const baseId = postId.split('-')[0];
         
-        // Already viewed this post
-        if (state.viewedPosts.has(baseId)) {
+        // Already viewed this post or not eligible
+        if (state.viewedPosts.has(baseId) || amount === 0) {
           return 0;
         }
         
-        const amount = getRandomEarning();
         const newViewed = new Set(state.viewedPosts);
         newViewed.add(baseId);
         
@@ -268,18 +291,22 @@ export const useDreamStore = create<DreamStore>()(
           username: state.user?.username || 'Unknown User',
         };
         
+        // Deduct from available balance
         set({
+          availableBalance: state.availableBalance - amount,
+          totalWithdrawn: state.totalWithdrawn + amount,
           withdrawalHistory: [withdrawal, ...state.withdrawalHistory],
         });
       },
     }),
     {
-      name: 'dream-storage-v4',
+      name: 'dream-storage-v5',
       partialize: (state) => ({
         ...state,
         likedPosts: setToArray(state.likedPosts),
         savedPosts: setToArray(state.savedPosts),
         viewedPosts: setToArray(state.viewedPosts),
+        followingUsers: setToArray(state.followingUsers),
         postComments: mapToArray(state.postComments),
       }),
       merge: (persistedState: any, currentState) => ({
@@ -288,13 +315,23 @@ export const useDreamStore = create<DreamStore>()(
         likedPosts: arrayToSet(persistedState?.likedPosts || []),
         savedPosts: arrayToSet(persistedState?.savedPosts || []),
         viewedPosts: arrayToSet(persistedState?.viewedPosts || []),
+        followingUsers: arrayToSet(persistedState?.followingUsers || []),
         postComments: arrayToMap(persistedState?.postComments || []),
       }),
     }
   )
 );
 
-// 30+ Demo posts with Picsum images - WITH MONETIZATION
+// Helper function to get random eligibility (0, 10, 15, or 20)
+const getRandomEligibility = (): number => {
+  const rand = Math.random();
+  if (rand < 0.25) return 0; // 25% not eligible
+  if (rand < 0.5) return 10; // 25% ₦10
+  if (rand < 0.75) return 15; // 25% ₦15
+  return 20; // 25% ₦20
+};
+
+// 30+ Demo posts with Picsum images - WITH ELIGIBILITY
 export const demoPosts: Post[] = [
   // FOR YOU
   {
@@ -302,7 +339,7 @@ export const demoPosts: Post[] = [
     creator: 'chioma_vibes',
     creatorId: 'u1',
     creatorAvatar: 'CV',
-    caption: 'Lagos nightlife hits different 🌃✨ #lagos #vibes',
+    caption: 'Lagos nightlife hits different 🌃✨ The city comes alive after dark with lights, music, and energy everywhere.',
     likes: 12400,
     comments: [],
     saves: 892,
@@ -310,14 +347,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/lagos1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   {
     id: 'fy2',
     creator: 'tech_adebayo',
     creatorId: 'u2',
     creatorAvatar: 'TA',
-    caption: 'How I made my first ₦100k online 💰 Full story in comments!',
+    caption: 'How I made my first ₦100k online 💰 Started with zero, now helping others do the same. Hard work pays!',
     likes: 45200,
     comments: [],
     saves: 3241,
@@ -325,14 +362,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/tech1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
   },
   {
     id: 'fy3',
     creator: 'amaka_cooks',
     creatorId: 'u3',
     creatorAvatar: 'AC',
-    caption: 'Jollof rice recipe that slaps 🍚🔥 #foodie #nigerian',
+    caption: 'Jollof rice recipe that slaps 🍚🔥 Secret ingredient is patience and love! Full recipe in bio.',
     likes: 8900,
     comments: [],
     saves: 567,
@@ -340,14 +377,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/food1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'fy4',
     creator: 'dance_king_ng',
     creatorId: 'u4',
     creatorAvatar: 'DK',
-    caption: 'New Afrobeats challenge 🕺💥 Can you do this? #dance',
+    caption: 'New Afrobeats challenge 🕺💥 Can you hit these moves? Drop your video using #DanceKingChallenge!',
     likes: 67800,
     comments: [],
     saves: 4521,
@@ -355,14 +392,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/dance1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'fy5',
     creator: 'unilag_babe',
     creatorId: 'u5',
     creatorAvatar: 'UB',
-    caption: 'Day in my life as a final year student 📚✨ #student',
+    caption: 'Day in my life as a final year student 📚✨ From morning lectures to late night studying. The grind is real!',
     likes: 5600,
     comments: [],
     saves: 234,
@@ -370,14 +407,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/student1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'fy6',
     creator: 'naija_comedy_king',
     creatorId: 'u20',
     creatorAvatar: 'NC',
-    caption: 'When your mama catches you sneaking out 😂💀',
+    caption: 'When your mama catches you sneaking out 😂💀 Every Nigerian kid knows this fear! Tag someone who can relate.',
     likes: 156000,
     comments: [],
     saves: 12000,
@@ -385,14 +422,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/comedy1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
   },
   {
     id: 'fy7',
     creator: 'lagos_traffic_tales',
     creatorId: 'u21',
     creatorAvatar: 'LT',
-    caption: 'Third Mainland at 6am vs 6pm 🚗😩 #lagos #traffic',
+    caption: 'Third Mainland at 6am vs 6pm 🚗😩 The bridge never sleeps, and neither do we in this traffic!',
     likes: 34000,
     comments: [],
     saves: 1200,
@@ -400,14 +437,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/traffic1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   {
     id: 'fy8',
     creator: 'makeup_by_funke',
     creatorId: 'u22',
     creatorAvatar: 'MF',
-    caption: 'Wedding guest look under ₦5k 💄✨ #makeup #budget',
+    caption: 'Wedding guest look under ₦5k 💄✨ Proving you can slay on a budget! All products linked in bio.',
     likes: 28000,
     comments: [],
     saves: 5600,
@@ -415,14 +452,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/makeup1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'fy9',
     creator: 'fit_naija_boy',
     creatorId: 'u23',
     creatorAvatar: 'FN',
-    caption: 'No gym? No problem 💪🏾 Home workout routine',
+    caption: 'No gym? No problem 💪🏾 Home workout routine that builds real muscle. 30 mins a day is all you need!',
     likes: 42000,
     comments: [],
     saves: 8900,
@@ -430,14 +467,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/fitness1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'fy10',
     creator: 'abuja_foodie',
     creatorId: 'u24',
     creatorAvatar: 'AF',
-    caption: 'Best suya spots in Wuse 2 🍖🔥 #abuja #food',
+    caption: 'Best suya spots in Wuse 2 🍖🔥 After trying 20+ places, these are my top 3. You need to try them!',
     likes: 15600,
     comments: [],
     saves: 3400,
@@ -445,7 +482,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/suya1/800/1200',
     category: 'foryou',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   // FOLLOWING
   {
@@ -453,7 +490,7 @@ export const demoPosts: Post[] = [
     creator: 'fave_creator',
     creatorId: 'u6',
     creatorAvatar: 'FC',
-    caption: 'Made this just for my followers 💕 #love',
+    caption: 'Made this just for my followers 💕 Special content dropping soon. Stay tuned for exclusive drops!',
     likes: 23400,
     comments: [],
     saves: 1892,
@@ -461,14 +498,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/fave1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'fl2',
     creator: 'naija_comedy',
     creatorId: 'u7',
     creatorAvatar: 'NC',
-    caption: 'When your mama calls your full name 😂💀 #comedy',
+    caption: 'When your mama calls your full name 😂💀 You know trouble is coming! Every Nigerian child has PTSD from this.',
     likes: 89000,
     comments: [],
     saves: 5432,
@@ -476,14 +513,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/mama1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
   },
   {
     id: 'fl3',
     creator: 'lagos_hustler',
     creatorId: 'u8',
     creatorAvatar: 'LH',
-    caption: 'The hustle never stops 💪🏾 #motivation',
+    caption: 'The hustle never stops 💪🏾 From nothing to something. This city will make or break you - choose wisely!',
     likes: 34500,
     comments: [],
     saves: 2341,
@@ -491,14 +528,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/hustle1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'fl4',
     creator: 'music_maestro',
     creatorId: 'u25',
     creatorAvatar: 'MM',
-    caption: 'New track dropping Friday 🎵🔥 #newmusic',
+    caption: 'New track dropping Friday 🎵🔥 Been cooking this one for 6 months. Pre-save link in bio!',
     likes: 67000,
     comments: [],
     saves: 12000,
@@ -506,14 +543,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/music1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   {
     id: 'fl5',
     creator: 'tech_sis',
     creatorId: 'u26',
     creatorAvatar: 'TS',
-    caption: 'Coding tutorial for beginners 💻 #tech #coding',
+    caption: 'Coding tutorial for beginners 💻 From zero to hero in Python. Start your tech journey today!',
     likes: 18900,
     comments: [],
     saves: 6700,
@@ -521,14 +558,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/coding1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'fl6',
     creator: 'fashion_plug_ng',
     creatorId: 'u27',
     creatorAvatar: 'FP',
-    caption: 'Ankara collection 2024 🧵✨ #fashion',
+    caption: 'Ankara collection 2024 🧵✨ Fresh designs that blend tradition with modern style. DM for orders!',
     likes: 45000,
     comments: [],
     saves: 9800,
@@ -536,14 +573,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/ankara1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'fl7',
     creator: 'travel_ng_',
     creatorId: 'u28',
     creatorAvatar: 'TN',
-    caption: 'Hidden beach in Calabar you need to visit 🏖️',
+    caption: 'Hidden beach in Calabar you need to visit 🏖️ Crystal clear waters and zero crowd. Perfect weekend escape!',
     likes: 56000,
     comments: [],
     saves: 14000,
@@ -551,7 +588,7 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/beach1/800/1200',
     category: 'following',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
   },
   // EXPLORE
   {
@@ -559,7 +596,7 @@ export const demoPosts: Post[] = [
     creator: 'travel_ng',
     creatorId: 'u9',
     creatorAvatar: 'TN',
-    caption: 'Hidden gems in Nigeria you need to visit 🌴 #travel',
+    caption: 'Hidden gems in Nigeria you need to visit 🌴 From waterfalls to mountains - explore your country first!',
     likes: 56700,
     comments: [],
     saves: 8923,
@@ -567,14 +604,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/gems1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   {
     id: 'ex2',
     creator: 'fit_naija',
     creatorId: 'u10',
     creatorAvatar: 'FN',
-    caption: 'Home workout that burns 500 calories 🔥💪 #fitness',
+    caption: 'Home workout that burns 500 calories 🔥💪 No equipment needed, just determination. Let\'s go!',
     likes: 42300,
     comments: [],
     saves: 6721,
@@ -582,14 +619,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/workout1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'ex3',
     creator: 'style_queen',
     creatorId: 'u11',
     creatorAvatar: 'SQ',
-    caption: 'Ankara styles for every occasion 👗✨ #fashion',
+    caption: 'Ankara styles for every occasion 👗✨ From casual to formal, there\'s an Ankara look for everything!',
     likes: 78900,
     comments: [],
     saves: 12432,
@@ -597,14 +634,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/style1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'ex4',
     creator: 'crypto_naija',
     creatorId: 'u29',
     creatorAvatar: 'CN',
-    caption: 'Bitcoin basics for Nigerians 💰 #crypto #money',
+    caption: 'Bitcoin basics for Nigerians 💰 Understanding crypto doesn\'t have to be complicated. Start here!',
     likes: 34000,
     comments: [],
     saves: 8900,
@@ -612,14 +649,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/crypto1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
   },
   {
     id: 'ex5',
     creator: 'small_chops_queen',
     creatorId: 'u30',
     creatorAvatar: 'SC',
-    caption: 'Puff puff recipe from scratch 🍩 #food #recipe',
+    caption: 'Puff puff recipe from scratch 🍩 Fluffy, golden, and perfectly sweet. Your guests will love these!',
     likes: 23000,
     comments: [],
     saves: 5600,
@@ -627,14 +664,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/puffpuff1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'ex6',
     creator: 'hair_by_nkechi',
     creatorId: 'u31',
     creatorAvatar: 'HN',
-    caption: 'Knotless braids tutorial 💇🏾‍♀️ #hair #braids',
+    caption: 'Knotless braids tutorial 💇🏾‍♀️ Learn how to achieve salon-quality braids at home. Save your money!',
     likes: 67000,
     comments: [],
     saves: 15000,
@@ -642,14 +679,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/braids1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'ex7',
     creator: 'spoken_word_ng',
     creatorId: 'u32',
     creatorAvatar: 'SW',
-    caption: 'This poem will make you cry 😭💔 #poetry',
+    caption: 'This poem will make you cry 😭💔 Words have power. This one is about love, loss, and finding yourself again.',
     likes: 89000,
     comments: [],
     saves: 18000,
@@ -657,14 +694,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/poetry1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 15,
   },
   {
     id: 'ex8',
     creator: 'pet_lover_ng',
     creatorId: 'u33',
     creatorAvatar: 'PL',
-    caption: 'My dog does the funniest things 🐕😂 #pets',
+    caption: 'My dog does the funniest things 🐕😂 Caught him stealing food again! Pet owners, you know the struggle.',
     likes: 45000,
     comments: [],
     saves: 6700,
@@ -672,14 +709,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/pets1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 10,
   },
   {
     id: 'ex9',
     creator: 'diy_nigeria',
     creatorId: 'u34',
     creatorAvatar: 'DI',
-    caption: 'Room makeover under ₦20k 🏠✨ #diy #home',
+    caption: 'Room makeover under ₦20k 🏠✨ Proof that you don\'t need big money to transform your space!',
     likes: 34000,
     comments: [],
     saves: 9800,
@@ -687,14 +724,14 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/diy1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: false,
+    eligibleAmount: 0,
   },
   {
     id: 'ex10',
     creator: 'game_reviews_ng',
     creatorId: 'u35',
     creatorAvatar: 'GR',
-    caption: 'FIFA 24 review - Worth it? 🎮 #gaming',
+    caption: 'FIFA 24 review - Worth it? 🎮 After 100+ hours of gameplay, here\'s my honest take on the new game.',
     likes: 28000,
     comments: [],
     saves: 4500,
@@ -702,7 +739,53 @@ export const demoPosts: Post[] = [
     imageUrl: 'https://picsum.photos/seed/gaming1/800/1200',
     category: 'explore',
     createdAt: new Date(),
-    isMonetized: true,
+    eligibleAmount: 20,
+  },
+  // Additional FOR YOU posts
+  {
+    id: 'fy11',
+    creator: 'nollywood_bts',
+    creatorId: 'u36',
+    creatorAvatar: 'NB',
+    caption: 'Behind the scenes of your favorite movie 🎬 The magic happens off-camera! Swipe to see more.',
+    likes: 78000,
+    comments: [],
+    saves: 12000,
+    shares: 5600,
+    imageUrl: 'https://picsum.photos/seed/nollywood1/800/1200',
+    category: 'foryou',
+    createdAt: new Date(),
+    eligibleAmount: 15,
+  },
+  {
+    id: 'fy12',
+    creator: 'street_food_ng',
+    creatorId: 'u37',
+    creatorAvatar: 'SF',
+    caption: 'Best akara spots in Lagos 🍳 Golden, crispy, and perfectly spiced. Where\'s your favorite spot?',
+    likes: 23000,
+    comments: [],
+    saves: 4500,
+    shares: 1200,
+    imageUrl: 'https://picsum.photos/seed/akara1/800/1200',
+    category: 'foryou',
+    createdAt: new Date(),
+    eligibleAmount: 10,
+  },
+  {
+    id: 'fy13',
+    creator: 'naija_motivation',
+    creatorId: 'u38',
+    creatorAvatar: 'NM',
+    caption: 'Your breakthrough is coming 🙏🏾 Keep pushing, keep praying, keep working. Your time will come!',
+    likes: 156000,
+    comments: [],
+    saves: 34000,
+    shares: 12000,
+    imageUrl: 'https://picsum.photos/seed/motivation1/800/1200',
+    category: 'foryou',
+    createdAt: new Date(),
+    eligibleAmount: 0,
   },
 ];
 
@@ -795,4 +878,7 @@ export const creatorProfiles: Record<string, {
   'u33': { id: 'u33', username: 'pet_lover_ng', bio: 'Dog mom 🐕', followers: 98000, following: 450, avatar: 'PL', totalViews: 4500000 },
   'u34': { id: 'u34', username: 'diy_nigeria', bio: 'DIY & Home decor 🏠', followers: 78000, following: 280, avatar: 'DI', totalViews: 3400000 },
   'u35': { id: 'u35', username: 'game_reviews_ng', bio: 'Gaming content 🎮', followers: 67000, following: 340, avatar: 'GR', totalViews: 2800000 },
+  'u36': { id: 'u36', username: 'nollywood_bts', bio: 'Behind the scenes 🎬', followers: 234000, following: 180, avatar: 'NB', totalViews: 7800000 },
+  'u37': { id: 'u37', username: 'street_food_ng', bio: 'Street food explorer 🍳', followers: 89000, following: 320, avatar: 'SF', totalViews: 2300000 },
+  'u38': { id: 'u38', username: 'naija_motivation', bio: 'Daily motivation 🙏🏾', followers: 456000, following: 120, avatar: 'NM', totalViews: 15600000 },
 };

@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronDown, CheckCircle2, AlertCircle, Clock, Search } from "lucide-react";
+import { ArrowLeft, ChevronDown, CheckCircle2, AlertCircle, Clock, Search, AlertTriangle, User } from "lucide-react";
 import { useDreamStore, nigerianBanks } from "@/lib/store";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Step = "amount" | "bank" | "account" | "confirm" | "success";
 
@@ -15,10 +23,10 @@ export default function Withdraw() {
   const [amount, setAmount] = useState("");
   const [bank, setBank] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [accountName, setAccountName] = useState("");
   const [showBankList, setShowBankList] = useState(false);
   const [bankSearch, setBankSearch] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
+  const [showDemoModal, setShowDemoModal] = useState(false);
   
   const user = useDreamStore((state) => state.user);
   const availableBalance = useDreamStore((state) => state.availableBalance);
@@ -27,21 +35,16 @@ export default function Withdraw() {
   const amountNum = parseInt(amount) || 0;
   const isValidAmount = amountNum >= 100 && amountNum <= availableBalance;
 
-  // Use logged-in user's name for account verification
-  const verifyAccount = () => {
-    setIsVerifying(true);
-    setTimeout(() => {
-      // Use the actual user's username/name
-      const verifiedName = user?.username 
-        ? user.username.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-        : "Account Holder";
-      setAccountName(verifiedName);
-      setIsVerifying(false);
-    }, 1500);
+  // Use the user's full name (legal name) for withdrawals
+  const withdrawalName = user?.fullName || "Account Holder";
+
+  const handleConfirmClick = () => {
+    setShowDemoModal(true);
   };
 
-  const handleConfirm = () => {
-    requestWithdrawal(amountNum, bank, accountNumber, accountName);
+  const handleFinalConfirm = () => {
+    requestWithdrawal(amountNum, bank, accountNumber, withdrawalName);
+    setShowDemoModal(false);
     setStep("success");
   };
 
@@ -226,42 +229,12 @@ export default function Withdraw() {
               onChange={(e) => {
                 const value = e.target.value.replace(/\D/g, "").slice(0, 10);
                 setAccountNumber(value);
-                setAccountName(""); // Reset verification
-                if (value.length === 10) {
-                  verifyAccount();
-                }
               }}
               className="h-16 text-2xl font-mono tracking-wider text-center mb-4"
             />
 
-            {/* Account verification */}
-            {accountNumber.length === 10 && (
-              <Card variant="gradient" className="mb-6">
-                <CardContent className="p-4">
-                  {isVerifying ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
-                        <Clock className="w-4 h-4 text-primary" />
-                      </div>
-                      <span className="text-muted-foreground">Verifying account...</span>
-                    </div>
-                  ) : accountName ? (
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-success" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Account Name (simulated)</p>
-                        <p className="font-semibold text-foreground">{accountName}</p>
-                      </div>
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            )}
-
             <p className="text-xs text-muted-foreground text-center mb-4">
-              Account name will be verified on submission
+              Account name will be verified during review
             </p>
 
             <div className="mt-auto">
@@ -270,7 +243,7 @@ export default function Withdraw() {
                 size="xl"
                 className="w-full"
                 onClick={() => setStep("confirm")}
-                disabled={accountNumber.length !== 10 || !accountName}
+                disabled={accountNumber.length !== 10}
               >
                 Continue
               </Button>
@@ -308,21 +281,24 @@ export default function Withdraw() {
                   <span className="text-muted-foreground">Account</span>
                   <span className="font-mono text-foreground">{accountNumber}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Name</span>
-                  <span className="font-medium text-foreground">{accountName}</span>
+                <div className="flex justify-between items-center pt-4 border-t border-border">
+                  <span className="text-muted-foreground flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Withdrawal Name
+                  </span>
+                  <span className="font-medium text-foreground">{withdrawalName}</span>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 mb-6">
+            <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 mb-4">
               <p className="text-xs text-center text-primary">
-                Account name confirmed (simulated)
+                This name matches your signup information
               </p>
             </div>
 
             <p className="text-xs text-muted-foreground text-center mb-6">
-              Withdrawal requests require admin approval. This is a simulated payout.
+              Withdrawal amount will be deducted from your available balance.
             </p>
 
             <div className="mt-auto">
@@ -330,7 +306,7 @@ export default function Withdraw() {
                 variant="gold"
                 size="xl"
                 className="w-full"
-                onClick={handleConfirm}
+                onClick={handleConfirmClick}
               >
                 Confirm Withdrawal
               </Button>
@@ -365,7 +341,7 @@ export default function Withdraw() {
             </p>
             
             <div className="px-4 py-2 rounded-full bg-primary/20 border border-primary/50 mb-4">
-              <span className="text-sm font-medium text-primary">Pending Review</span>
+              <span className="text-sm font-medium text-primary">Pending (Demo)</span>
             </div>
 
             <p className="text-xs text-muted-foreground text-center mb-8 max-w-[280px]">
@@ -421,6 +397,41 @@ export default function Withdraw() {
       <AnimatePresence mode="wait">
         {renderStep()}
       </AnimatePresence>
+
+      {/* Demo Confirmation Modal */}
+      <Dialog open={showDemoModal} onOpenChange={setShowDemoModal}>
+        <DialogContent className="max-w-[340px] rounded-2xl">
+          <DialogHeader className="text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-primary" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Demo Notice</DialogTitle>
+            <DialogDescription className="text-center space-y-3 pt-2">
+              <p>This is a test environment.</p>
+              <p className="font-medium text-foreground">
+                No real money will be sent to your bank account.
+              </p>
+              <p>This withdrawal is recorded for testing purposes only.</p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col gap-2 mt-4">
+            <Button
+              variant="gold"
+              className="w-full"
+              onClick={handleFinalConfirm}
+            >
+              I Understand, Continue
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowDemoModal(false)}
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

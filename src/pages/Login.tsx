@@ -22,6 +22,7 @@ export default function Login() {
     // Create mock user with full profile
     login({
       id: Math.random().toString(36).substr(2, 9),
+      fullName: formData.email.split("@")[0] || "Demo User",
       username: formData.email.split("@")[0] || "dreamer",
       email: formData.email,
       createdAt: new Date(),
