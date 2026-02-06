@@ -4,80 +4,51 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Wallet as WalletIcon, ArrowUpRight, AlertCircle, TrendingUp, Coins, Clock } from "lucide-react";
-import { useDreamStore } from "@/lib/store";
+import { useAuth } from "@/hooks/useAuth";
+import { useEarningsHistory, useWithdrawalHistory } from "@/hooks/useWallet";
 
 export default function Wallet() {
   const navigate = useNavigate();
-  const availableBalance = useDreamStore((state) => state.availableBalance);
-  const totalEarned = useDreamStore((state) => state.totalEarned);
-  const earningsHistory = useDreamStore((state) => state.earningsHistory);
-  const withdrawalHistory = useDreamStore((state) => state.withdrawalHistory);
+  const { profile } = useAuth();
+  const { data: earningsHistory = [] } = useEarningsHistory();
+  const { data: withdrawalHistory = [] } = useWithdrawalHistory();
+
+  const availableBalance = profile?.wallet_balance || 0;
+  const totalEarned = profile?.total_earned || 0;
 
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            Wallet
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Demo wallet • No real transactions
-          </p>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <h1 className="font-display text-2xl font-bold text-foreground">Wallet</h1>
+          <p className="text-xs text-muted-foreground mt-1">Beta wallet • Demo MVP</p>
         </motion.div>
 
         {/* Main Balance Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card variant="earning" className="mb-4 overflow-hidden">
             <CardContent className="p-0">
               <div className="p-6 pb-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
-                    <motion.p
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.3, type: "spring" }}
-                      className="text-4xl font-bold text-gradient-gold"
-                    >
-                      ₦{availableBalance.toLocaleString()}
-                    </motion.p>
+                    <motion.p initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, type: "spring" }}
+                      className="text-4xl font-bold text-gradient-gold">₦{availableBalance.toLocaleString()}</motion.p>
                   </div>
                   <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center">
                     <WalletIcon className="w-7 h-7 text-primary" />
                   </div>
                 </div>
-                
-                <Button
-                  variant="gold"
-                  size="lg"
-                  className="w-full"
-                  onClick={() => navigate("/withdraw")}
-                  disabled={availableBalance === 0}
-                >
-                  <ArrowUpRight className="w-5 h-5" />
-                  Request Withdrawal
+                <Button variant="gold" size="lg" className="w-full" onClick={() => navigate("/withdraw")} disabled={availableBalance === 0}>
+                  <ArrowUpRight className="w-5 h-5" /> Request Withdrawal
                 </Button>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Total Earnings Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="mb-6"
-        >
+        {/* Total Earnings */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
           <Card variant="gradient">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -91,7 +62,7 @@ export default function Wallet() {
                   </div>
                 </div>
                 <div className="px-2 py-1 rounded-full bg-primary/20">
-                  <span className="text-xs text-primary font-medium">Demo</span>
+                  <span className="text-xs text-primary font-medium">Beta</span>
                 </div>
               </div>
             </CardContent>
@@ -99,16 +70,8 @@ export default function Wallet() {
         </motion.div>
 
         {/* Earnings History */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="mb-6"
-        >
-          <h2 className="font-display text-lg font-semibold text-foreground mb-3">
-            Earnings History
-          </h2>
-          
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-6">
+          <h2 className="font-display text-lg font-semibold text-foreground mb-3">Earnings History</h2>
           {earningsHistory.length === 0 ? (
             <Card variant="gradient">
               <CardContent className="p-6 text-center">
@@ -116,141 +79,80 @@ export default function Wallet() {
                   <Coins className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <p className="text-foreground font-medium mb-1">No earnings yet</p>
-                <p className="text-muted-foreground text-sm">
-                  Scroll through monetized posts to earn!
-                </p>
+                <p className="text-muted-foreground text-sm">View eligible posts to earn!</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {earningsHistory.slice(0, 10).map((earning, index) => (
-                <motion.div
-                  key={earning.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.25 + index * 0.05 }}
-                >
-                  <Card variant="default">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                            <Coins className="w-4 h-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground text-sm">
-                              +₦{earning.amount}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              @{earning.creatorUsername}
-                            </p>
-                          </div>
+              {earningsHistory.map((earning: any) => (
+                <Card key={earning.id} variant="default">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <Coins className="w-4 h-4 text-primary" />
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3" />
-                          <span>
-                            {new Date(earning.createdAt).toLocaleTimeString([], { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </span>
+                        <div>
+                          <p className="font-semibold text-foreground text-sm">+₦{earning.amount}</p>
+                          <p className="text-xs text-muted-foreground">{earning.description}</p>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        <span>{new Date(earning.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
         </motion.div>
 
         {/* Withdrawal History */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <h2 className="font-display text-lg font-semibold text-foreground mb-3">
-            Withdrawal History
-          </h2>
-          
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <h2 className="font-display text-lg font-semibold text-foreground mb-3">Withdrawal History</h2>
           {withdrawalHistory.length === 0 ? (
             <Card variant="gradient">
               <CardContent className="p-6 text-center">
-                <p className="text-muted-foreground text-sm">
-                  No withdrawals yet
-                </p>
+                <p className="text-muted-foreground text-sm">No withdrawals yet</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-2">
-              {withdrawalHistory.slice(0, 5).map((withdrawal, index) => (
-                <motion.div
-                  key={withdrawal.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.35 + index * 0.1 }}
-                >
-                  <Card variant="default">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                            withdrawal.status === "approved"
-                              ? "bg-success/20" 
-                              : withdrawal.status === "rejected"
-                              ? "bg-destructive/20"
-                              : "bg-primary/20"
-                          }`}>
-                            <ArrowUpRight className={`w-4 h-4 ${
-                              withdrawal.status === "approved"
-                                ? "text-success"
-                                : withdrawal.status === "rejected"
-                                ? "text-destructive"
-                                : "text-primary"
-                            }`} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-foreground text-sm">
-                              ₦{withdrawal.amount.toLocaleString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {withdrawal.bank}
-                            </p>
-                          </div>
+              {withdrawalHistory.map((w: any) => (
+                <Card key={w.id} variant="default">
+                  <CardContent className="p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                          <ArrowUpRight className="w-4 h-4 text-primary" />
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                          withdrawal.status === "approved"
-                            ? "bg-success/20 text-success"
-                            : withdrawal.status === "rejected"
-                            ? "bg-destructive/20 text-destructive"
-                            : "bg-primary/20 text-primary"
-                        }`}>
-                          {withdrawal.status === 'pending' ? 'Pending (Demo)' : withdrawal.status}
-                        </span>
+                        <div>
+                          <p className="font-semibold text-foreground text-sm">₦{w.amount.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{w.bank_name}</p>
+                        </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
+                      <span className="text-xs px-2 py-1 rounded-full capitalize bg-primary/20 text-primary">
+                        {w.status === 'pending' ? 'Pending' : w.status}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
         </motion.div>
 
-        {/* Demo disclaimer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-6 p-4 rounded-xl bg-primary/10 border border-primary/30"
-        >
+        {/* Disclaimer */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+          className="mt-6 p-4 rounded-xl bg-primary/10 border border-primary/30">
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm text-primary font-medium">Demo Wallet</p>
+              <p className="text-sm text-primary font-medium">Demo MVP</p>
               <p className="text-xs text-muted-foreground mt-1">
-                This is a demo wallet. No real money is paid. 
-                Scroll through monetized posts to see demo earnings.
+                This is a demo MVP. Not all users will be paid during testing.
               </p>
             </div>
           </div>
