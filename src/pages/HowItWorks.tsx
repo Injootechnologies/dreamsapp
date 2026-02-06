@@ -102,7 +102,7 @@ export default function HowItWorks() {
           variant="gold"
           size="xl"
           className="w-full"
-          onClick={() => navigate("/signup")}
+          onClick={() => navigate("/auth")}
         >
           Start Earning Now
           <ArrowRight className="w-5 h-5" />
