@@ -9,6 +9,8 @@ import { ArrowLeft, User, Lock, LogOut, ChevronRight, Save } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usernameSchema, bioSchema } from "@/lib/validation";
+import { z } from "zod";
 
 type SettingsView = 'main' | 'edit-profile' | 'change-password';
 
@@ -31,10 +33,29 @@ export default function Settings() {
 
   const handleSaveProfile = async () => {
     if (!user) return;
+
+    // Validate inputs with zod
+    try {
+      usernameSchema.parse(username);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
+
+    try {
+      bioSchema.parse(bio);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
     
     const { error } = await supabase
       .from('profiles')
-      .update({ username, bio })
+      .update({ username: username.trim(), bio: bio.trim() })
       .eq('user_id', user.id);
     
     if (error) {
@@ -87,11 +108,11 @@ export default function Settings() {
             <div className="space-y-4 mb-8">
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">Username</label>
-                <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Enter username" className="h-12" />
+                <Input value={username} onChange={(e) => setUsername(e.target.value.replace(/\s/g, '_'))} placeholder="Enter username" className="h-12" maxLength={30} />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">Bio</label>
-                <Input value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself" className="h-12" />
+                <Input value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself" className="h-12" maxLength={500} />
               </div>
             </div>
             <Button variant="gold" size="xl" className="w-full" onClick={handleSaveProfile}>

@@ -8,6 +8,8 @@ import { motion } from "framer-motion";
 import { Image, Hash, CheckCircle2, X, Camera, Film } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePost } from "@/hooks/usePosts";
+import { captionSchema, categorySchema } from "@/lib/validation";
+import { z } from "zod";
 
 const categories = [
   "Entertainment", "Education", "Comedy", "Music",
@@ -78,9 +80,26 @@ export default function Create() {
   };
 
   const handlePost = () => {
-    if (!caption.trim()) { toast.error("Please add a caption"); return; }
-    if (!selectedCategory) { toast.error("Please select a category"); return; }
     if (!mediaFile) { toast.error("Please upload media"); return; }
+
+    // Validate inputs with zod
+    try {
+      captionSchema.parse(caption);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
+
+    try {
+      categorySchema.parse(selectedCategory);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+        return;
+      }
+    }
 
     createPost.mutate({
       caption: caption.trim(),

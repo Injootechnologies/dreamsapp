@@ -377,8 +377,9 @@ export default function HomeFeed() {
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Add a comment..."
                   className="flex-1"
+                  maxLength={500}
                 />
-                <Button variant="gold" size="icon" disabled={!commentText.trim()}>
+                <Button variant="gold" size="icon" disabled={!commentText.trim() || commentText.length > 500}>
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
