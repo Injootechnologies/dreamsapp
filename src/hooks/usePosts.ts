@@ -30,18 +30,35 @@ export function useFeedPosts() {
   return useQuery({
     queryKey: ['feed-posts'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch posts
+      const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*, profiles!posts_user_id_fkey(username, avatar_url, full_name)')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(50);
       
-      if (error) throw error;
+      if (postsError) throw postsError;
       
-      // Map the response to include profile info
-      const dbPosts: PostWithProfile[] = (data || []).map((post: any) => ({
+      // Get unique user IDs from posts
+      const userIds = [...new Set((postsData || []).map(p => p.user_id))];
+      
+      // Fetch public profile data (excludes financial fields)
+      let profilesMap: Record<string, { username: string; avatar_url: string | null; full_name: string }> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles_public')
+          .select('user_id, username, full_name, avatar_url')
+          .in('user_id', userIds);
+        
+        (profilesData || []).forEach((p: any) => {
+          profilesMap[p.user_id] = { username: p.username, avatar_url: p.avatar_url, full_name: p.full_name };
+        });
+      }
+      
+      // Map posts with profile info
+      const dbPosts: PostWithProfile[] = (postsData || []).map((post: any) => ({
         ...post,
-        profile: post.profiles || undefined,
+        profile: profilesMap[post.user_id] || undefined,
       }));
 
       // Also include demo posts for the MVP to ensure content richness

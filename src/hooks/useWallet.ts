@@ -31,8 +31,9 @@ export function useWithdrawalHistory() {
     queryKey: ['withdrawal-history', user?.id],
     queryFn: async () => {
       if (!user) return [];
+      // Use the safe view that masks account numbers
       const { data, error } = await supabase
-        .from('withdrawals')
+        .from('withdrawals_safe')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
