@@ -1,58 +1,98 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Bookmark, Share2, Send, X, Copy, Check, Coins, UserPlus, UserCheck } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send, X, Coins, UserPlus, UserCheck, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { useFeedPosts, useUserLikes, useToggleLike, useEarnFromPost } from "@/hooks/usePosts";
+import { useFeedPosts, useUserLikes, useToggleLike, useEarnFromPost, PostWithProfile } from "@/hooks/usePosts";
 import { useFollowing, useToggleFollow } from "@/hooks/useFollow";
+import { ShareSheet } from "@/components/feed/ShareSheet";
+import { VideoPlayer } from "@/components/feed/VideoPlayer";
+import { realisticDemoPosts } from "@/lib/demoContent";
 
-type FeedTab = 'foryou' | 'following' | 'explore';
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
+type FeedTab = 'foryou' | 'following';
 
 export default function HomeFeed() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState<FeedTab>('foryou');
   const [showCommentModal, setShowCommentModal] = useState<string | null>(null);
-  const [showShareModal, setShowShareModal] = useState<string | null>(null);
+  const [sharePostId, setSharePostId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
-  const [copiedLink, setCopiedLink] = useState(false);
   const [earningToast, setEarningToast] = useState<{amount: number; id: string} | null>(null);
   const [doubleTapLike, setDoubleTapLike] = useState<string | null>(null);
   const [earnedPosts, setEarnedPosts] = useState<Set<string>>(new Set());
+  const [activeIndex, setActiveIndex] = useState(0);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<{time: number; postId: string | null}>({ time: 0, postId: null });
   
-  const { data: allPosts = [], isLoading } = useFeedPosts();
+  const { data: dbPosts = [], isLoading } = useFeedPosts();
   const { data: likedPosts = new Set<string>() } = useUserLikes();
   const { data: followingUsers = new Set<string>() } = useFollowing();
   const toggleLikeMutation = useToggleLike();
   const toggleFollowMutation = useToggleFollow();
   const earnMutation = useEarnFromPost();
 
-  // Filter posts by tab
-  const feedPosts = (() => {
-    let filtered = allPosts;
+  // Build feed posts: DB posts + realistic demo content
+  const feedPosts: PostWithProfile[] = (() => {
+    // Convert demo posts to PostWithProfile format
+    const demoAsPosts: PostWithProfile[] = realisticDemoPosts.map((dp) => ({
+      id: dp.id,
+      user_id: dp.creatorId,
+      caption: dp.caption,
+      media_url: dp.mediaUrl,
+      media_type: dp.mediaType,
+      video_duration: dp.mediaType === 'video' ? 10 : null,
+      category: dp.category,
+      is_eligible: dp.isEligible,
+      eligible_amount: dp.eligibleAmount,
+      likes_count: dp.likes,
+      comments_count: dp.comments,
+      shares_count: dp.shares,
+      views_count: dp.views,
+      created_at: new Date().toISOString(),
+      profile: {
+        username: dp.creator,
+        avatar_url: null,
+        full_name: dp.creator,
+      },
+    }));
+
+    let combined = [...dbPosts, ...demoAsPosts];
+
     if (activeTab === 'following') {
-      filtered = allPosts.filter(p => followingUsers.has(p.user_id));
-    } else if (activeTab === 'explore') {
-      filtered = allPosts.filter(p => p.category === 'explore' || !p.category);
+      combined = combined.filter(p => followingUsers.has(p.user_id));
     }
-    return shuffleArray(filtered);
+
+    // Shuffle for fresh feel each time
+    for (let i = combined.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [combined[i], combined[j]] = [combined[j], combined[i]];
+    }
+    return combined;
   })();
+
+  // Track which post is visible for video autoplay
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const scrollTop = container.scrollTop;
+    const height = container.clientHeight;
+    const idx = Math.round(scrollTop / height);
+    setActiveIndex(idx);
+
+    // Earning on scroll
+    const postScrolledPast = Math.floor((scrollTop + height * 0.3) / height);
+    if (feedPosts[postScrolledPast - 1]) {
+      const passedPost = feedPosts[postScrolledPast - 1];
+      if (passedPost.is_eligible && passedPost.eligible_amount > 0 && !passedPost.id.startsWith('demo-')) {
+        handleEarn(passedPost.id, passedPost.eligible_amount);
+      }
+    }
+  }, [feedPosts]);
 
   // Double tap to like handler
   const handleDoubleTap = (postId: string) => {
@@ -93,9 +133,6 @@ export default function HomeFeed() {
 
   const handleEarn = useCallback((postId: string, amount: number) => {
     if (amount <= 0 || earnedPosts.has(postId) || postId.startsWith('demo-')) return;
-    
-    // For demo posts, just show toast (no real DB earning)
-    if (postId.startsWith('demo-')) return;
 
     earnMutation.mutate({ postId, amount }, {
       onSuccess: (earned) => {
@@ -108,35 +145,9 @@ export default function HomeFeed() {
     });
   }, [earnedPosts, earnMutation]);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const container = e.currentTarget;
-    const scrollTop = container.scrollTop;
-    const height = container.clientHeight;
-    
-    const postScrolledPast = Math.floor((scrollTop + height * 0.3) / height);
-    
-    if (feedPosts[postScrolledPast - 1]) {
-      const passedPost = feedPosts[postScrolledPast - 1];
-      if (passedPost.is_eligible && passedPost.eligible_amount > 0 && !passedPost.id.startsWith('demo-')) {
-        handleEarn(passedPost.id, passedPost.eligible_amount);
-      }
-    }
-  }, [feedPosts, handleEarn]);
-
-  const handleCopyLink = (postId: string) => {
-    navigator.clipboard.writeText(`https://dreamsapp.lovable.app/p/${postId}`);
-    setCopiedLink(true);
-    toast.success("Link copied!");
-    setTimeout(() => {
-      setCopiedLink(false);
-      setShowShareModal(null);
-    }, 1500);
-  };
-
   const tabs: { key: FeedTab; label: string }[] = [
     { key: 'foryou', label: 'For You' },
     { key: 'following', label: 'Following' },
-    { key: 'explore', label: 'Explore' },
   ];
 
   return (
@@ -145,7 +156,7 @@ export default function HomeFeed() {
       <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background/95 to-transparent pt-4 pb-8 px-4">
         <div className="max-w-[480px] mx-auto flex justify-between items-center">
           <div className="px-3 py-1.5 rounded-full bg-card/90 backdrop-blur-sm border border-border">
-            <span className="text-sm font-bold text-gradient-gold">DREAMS</span>
+            <span className="text-sm font-bold text-gradient-gold">DREAM$</span>
           </div>
           
           <div className="flex gap-1 bg-card/90 backdrop-blur-sm rounded-full p-1 border border-border">
@@ -153,7 +164,7 @@ export default function HomeFeed() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${
                   activeTab === tab.key
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground"
@@ -215,11 +226,12 @@ export default function HomeFeed() {
           className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
           style={{ scrollSnapType: 'y mandatory' }}
         >
-          {feedPosts.map((post) => {
+          {feedPosts.map((post, idx) => {
             const isLiked = likedPosts.has(post.id);
             const isFollowingUser = followingUsers.has(post.user_id);
             const username = post.profile?.username || 'creator';
             const avatarInitial = username.charAt(0).toUpperCase();
+            const isVisible = idx === activeIndex;
             
             return (
               <div
@@ -229,13 +241,10 @@ export default function HomeFeed() {
               >
                 {/* Media */}
                 {post.media_type === 'video' ? (
-                  <video
+                  <VideoPlayer
                     src={post.media_url}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loop
-                    muted
-                    playsInline
-                    autoPlay
+                    isVisible={isVisible}
+                    className="absolute inset-0 w-full h-full"
                   />
                 ) : (
                   <img
@@ -332,7 +341,7 @@ export default function HomeFeed() {
                         <span className="text-xs text-foreground font-medium">{post.comments_count}</span>
                       </button>
 
-                      <button onClick={(e) => { e.stopPropagation(); setShowShareModal(post.id); }} className="flex flex-col items-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); setSharePostId(post.id); }} className="flex flex-col items-center gap-1">
                         <div className="p-2 text-foreground"><Share2 className="w-7 h-7" /></div>
                         <span className="text-xs text-foreground font-medium">Share</span>
                       </button>
@@ -388,45 +397,13 @@ export default function HomeFeed() {
         )}
       </AnimatePresence>
 
-      {/* Share Modal */}
-      <AnimatePresence>
-        {showShareModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
-            onClick={() => setShowShareModal(null)}
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl p-6"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-display text-lg font-bold text-foreground">Share</h3>
-                <button onClick={() => setShowShareModal(null)}>
-                  <X className="w-6 h-6 text-muted-foreground" />
-                </button>
-              </div>
-              <button
-                onClick={() => showShareModal && handleCopyLink(showShareModal)}
-                className="w-full flex items-center gap-4 p-4 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                  {copiedLink ? <Check className="w-6 h-6 text-primary" /> : <Copy className="w-6 h-6 text-primary" />}
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold text-foreground">{copiedLink ? "Link copied!" : "Copy link"}</p>
-                  <p className="text-sm text-muted-foreground">Share this post with others</p>
-                </div>
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Share Sheet */}
+      <ShareSheet
+        isOpen={!!sharePostId}
+        onClose={() => setSharePostId(null)}
+        postId={sharePostId || undefined}
+        type="post"
+      />
     </MobileLayout>
   );
 }
