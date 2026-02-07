@@ -2,7 +2,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import { demoPosts } from '@/lib/store';
 
 export interface PostWithProfile {
   id: string;
@@ -30,7 +29,7 @@ export function useFeedPosts() {
   return useQuery({
     queryKey: ['feed-posts'],
     queryFn: async () => {
-      // Fetch posts
+      // Fetch posts from DB only (demo posts are handled in the UI layer)
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
@@ -61,30 +60,7 @@ export function useFeedPosts() {
         profile: profilesMap[post.user_id] || undefined,
       }));
 
-      // Also include demo posts for the MVP to ensure content richness
-      const demosAsPosts: PostWithProfile[] = demoPosts.map(dp => ({
-        id: `demo-${dp.id}`,
-        user_id: dp.creatorId,
-        caption: dp.caption,
-        media_url: dp.imageUrl,
-        media_type: 'image',
-        video_duration: null,
-        category: dp.category,
-        is_eligible: dp.eligibleAmount > 0,
-        eligible_amount: dp.eligibleAmount,
-        likes_count: dp.likes,
-        comments_count: dp.comments.length,
-        shares_count: dp.shares,
-        views_count: dp.likes * 10,
-        created_at: new Date().toISOString(),
-        profile: {
-          username: dp.creator,
-          avatar_url: null,
-          full_name: dp.creator,
-        },
-      }));
-
-      return [...dbPosts, ...demosAsPosts];
+      return dbPosts;
     },
     staleTime: 30000,
   });

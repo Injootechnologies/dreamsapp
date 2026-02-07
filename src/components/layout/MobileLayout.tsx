@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Coins, PlusCircle, Wallet, User, MessageCircle } from "lucide-react";
+import { Home, Search, PlusCircle, Wallet, User, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MobileLayoutProps {
@@ -10,7 +10,7 @@ interface MobileLayoutProps {
 
 const navItems = [
   { path: "/home", icon: Home, label: "Home" },
-  { path: "/earn", icon: Coins, label: "Earn" },
+  { path: "/search", icon: Search, label: "Search" },
   { path: "/create", icon: PlusCircle, label: "Create" },
   { path: "/wallet", icon: Wallet, label: "Wallet" },
   { path: "/profile", icon: User, label: "Profile" },

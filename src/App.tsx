@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import HomeFeed from "./pages/HomeFeed";
 import Earn from "./pages/Earn";
 import Create from "./pages/Create";
+import SearchPage from "./pages/Search";
 import Wallet from "./pages/Wallet";
 import Withdraw from "./pages/Withdraw";
 import Profile from "./pages/Profile";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/home" element={<ProtectedRoute><HomeFeed /></ProtectedRoute>} />
             <Route path="/earn" element={<ProtectedRoute><Earn /></ProtectedRoute>} />
             <Route path="/create" element={<ProtectedRoute><Create /></ProtectedRoute>} />
+            <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
             <Route path="/withdraw" element={<ProtectedRoute><Withdraw /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

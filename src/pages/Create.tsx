@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useCreatePost } from "@/hooks/usePosts";
 import { captionSchema, categorySchema } from "@/lib/validation";
 import { z } from "zod";
+import { VideoTrimmer } from "@/components/create/VideoTrimmer";
 
 const categories = [
   "Entertainment", "Education", "Comedy", "Music",
@@ -26,6 +27,8 @@ export default function Create() {
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [videoDuration, setVideoDuration] = useState<number>(0);
+  const [showTrimmer, setShowTrimmer] = useState(false);
+  const [rawVideoFile, setRawVideoFile] = useState<File | null>(null);
   
   const createPost = useCreatePost();
 
@@ -34,29 +37,13 @@ export default function Create() {
     if (!file) return;
 
     if (file.type.startsWith('video/')) {
-      if (file.size > 50 * 1024 * 1024) {
-        toast.error("Video size must be less than 50MB");
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error("Video size must be less than 100MB");
         return;
       }
-      // Check video duration
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        URL.revokeObjectURL(video.src);
-        if (video.duration < 5) {
-          toast.error("Video must be at least 5 seconds long");
-          return;
-        }
-        if (video.duration > 15) {
-          toast.error("Video must be 15 seconds or less");
-          return;
-        }
-        setVideoDuration(Math.round(video.duration));
-        setMediaType('video');
-        setMediaFile(file);
-        setSelectedMedia(URL.createObjectURL(file));
-      };
-      video.src = URL.createObjectURL(file);
+      // Open trimmer for any video length
+      setRawVideoFile(file);
+      setShowTrimmer(true);
     } else if (file.type.startsWith('image/')) {
       if (file.size > 10 * 1024 * 1024) {
         toast.error("Image size must be less than 10MB");
@@ -72,6 +59,24 @@ export default function Create() {
     }
   };
 
+  const handleTrimComplete = (trimmedBlob: Blob, duration: number) => {
+    const file = new File([trimmedBlob], rawVideoFile?.name || 'video.mp4', {
+      type: rawVideoFile?.type || 'video/mp4',
+    });
+    setMediaType('video');
+    setMediaFile(file);
+    setVideoDuration(duration);
+    setSelectedMedia(URL.createObjectURL(file));
+    setShowTrimmer(false);
+    setRawVideoFile(null);
+  };
+
+  const handleTrimCancel = () => {
+    setShowTrimmer(false);
+    setRawVideoFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleRemoveMedia = () => {
     setSelectedMedia(null);
     setMediaFile(null);
@@ -82,7 +87,6 @@ export default function Create() {
   const handlePost = () => {
     if (!mediaFile) { toast.error("Please upload media"); return; }
 
-    // Validate inputs with zod
     try {
       captionSchema.parse(caption);
     } catch (err) {
@@ -112,6 +116,27 @@ export default function Create() {
     });
   };
 
+  // Video trimmer screen
+  if (showTrimmer && rawVideoFile) {
+    return (
+      <MobileLayout hideNav>
+        <div className="px-4 py-6 safe-top h-[100dvh] flex flex-col">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+            <h1 className="font-display text-xl font-bold text-foreground">Trim Video</h1>
+            <p className="text-muted-foreground text-sm">Select a 5-15 second clip to post</p>
+          </motion.div>
+          <div className="flex-1 min-h-0">
+            <VideoTrimmer
+              file={rawVideoFile}
+              onTrimComplete={handleTrimComplete}
+              onCancel={handleTrimCancel}
+            />
+          </div>
+        </div>
+      </MobileLayout>
+    );
+  }
+
   if (isPosted) {
     return (
       <MobileLayout>
@@ -123,7 +148,7 @@ export default function Create() {
           <motion.h2 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="font-display text-2xl font-bold text-foreground mb-2">Post Created!</motion.h2>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="text-muted-foreground text-center mb-6">Your post is now live on DREAMS.</motion.p>
+            className="text-muted-foreground text-center mb-6">Your post is now live on DREAM$.</motion.p>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="flex gap-3">
             <Button variant="gold-outline" onClick={() => { setCaption(""); setSelectedCategory(""); handleRemoveMedia(); setIsPosted(false); }}>Create Another</Button>
             <Button variant="gold" onClick={() => navigate("/profile")}>View Profile</Button>
@@ -138,7 +163,7 @@ export default function Create() {
       <div className="px-4 py-6 safe-top">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h1 className="font-display text-2xl font-bold text-foreground mb-1">Create Post</h1>
-          <p className="text-muted-foreground text-sm">Share images or short videos (5-15 sec)</p>
+          <p className="text-muted-foreground text-sm">Share images or videos — we'll help you trim</p>
         </motion.div>
 
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
@@ -161,7 +186,7 @@ export default function Create() {
                       <Image className="w-4 h-4" /><span className="text-xs">Images</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Film className="w-4 h-4" /><span className="text-xs">Videos (5-15s)</span>
+                      <Film className="w-4 h-4" /><span className="text-xs">Videos (any length)</span>
                     </div>
                   </div>
                 </button>
