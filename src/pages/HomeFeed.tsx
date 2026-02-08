@@ -11,7 +11,6 @@ import { useFeedPosts, useUserLikes, useToggleLike, useEarnFromPost, PostWithPro
 import { useFollowing, useToggleFollow } from "@/hooks/useFollow";
 import { ShareSheet } from "@/components/feed/ShareSheet";
 import { VideoPlayer } from "@/components/feed/VideoPlayer";
-import { realisticDemoPosts } from "@/lib/demoContent";
 
 type FeedTab = 'foryou' | 'following';
 
@@ -37,43 +36,15 @@ export default function HomeFeed() {
   const toggleFollowMutation = useToggleFollow();
   const earnMutation = useEarnFromPost();
 
-  // Build feed posts: DB posts + realistic demo content
+  // Feed posts: only real DB posts
   const feedPosts: PostWithProfile[] = (() => {
-    // Convert demo posts to PostWithProfile format
-    const demoAsPosts: PostWithProfile[] = realisticDemoPosts.map((dp) => ({
-      id: dp.id,
-      user_id: dp.creatorId,
-      caption: dp.caption,
-      media_url: dp.mediaUrl,
-      media_type: dp.mediaType,
-      video_duration: dp.mediaType === 'video' ? 10 : null,
-      category: dp.category,
-      is_eligible: dp.isEligible,
-      eligible_amount: dp.eligibleAmount,
-      likes_count: dp.likes,
-      comments_count: dp.comments,
-      shares_count: dp.shares,
-      views_count: dp.views,
-      created_at: new Date().toISOString(),
-      profile: {
-        username: dp.creator,
-        avatar_url: null,
-        full_name: dp.creator,
-      },
-    }));
-
-    let combined = [...dbPosts, ...demoAsPosts];
+    let posts = [...dbPosts];
 
     if (activeTab === 'following') {
-      combined = combined.filter(p => followingUsers.has(p.user_id));
+      posts = posts.filter(p => followingUsers.has(p.user_id));
     }
 
-    // Shuffle for fresh feel each time
-    for (let i = combined.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [combined[i], combined[j]] = [combined[j], combined[i]];
-    }
-    return combined;
+    return posts;
   })();
 
   // Track which post is visible for video autoplay
@@ -88,7 +59,7 @@ export default function HomeFeed() {
     const postScrolledPast = Math.floor((scrollTop + height * 0.3) / height);
     if (feedPosts[postScrolledPast - 1]) {
       const passedPost = feedPosts[postScrolledPast - 1];
-      if (passedPost.is_eligible && passedPost.eligible_amount > 0 && !passedPost.id.startsWith('demo-')) {
+      if (passedPost.is_eligible && passedPost.eligible_amount > 0) {
         handleEarn(passedPost.id, passedPost.eligible_amount);
       }
     }
@@ -100,7 +71,7 @@ export default function HomeFeed() {
     const lastTap = lastTapRef.current;
     
     if (lastTap.postId === postId && now - lastTap.time < 300) {
-      if (!likedPosts.has(postId) && !postId.startsWith('demo-')) {
+      if (!likedPosts.has(postId)) {
         toggleLikeMutation.mutate({ postId, isLiked: false });
       }
       setDoubleTapLike(postId);
@@ -112,18 +83,10 @@ export default function HomeFeed() {
   };
 
   const handleLike = (postId: string) => {
-    if (postId.startsWith('demo-')) {
-      toast.info("Like saved locally for demo posts");
-      return;
-    }
     toggleLikeMutation.mutate({ postId, isLiked: likedPosts.has(postId) });
   };
 
   const handleFollow = (userId: string) => {
-    if (userId.startsWith('u')) {
-      toast.info("Following demo creators is saved locally");
-      return;
-    }
     toggleFollowMutation.mutate({
       targetUserId: userId,
       isFollowing: followingUsers.has(userId),
@@ -132,7 +95,7 @@ export default function HomeFeed() {
   };
 
   const handleEarn = useCallback((postId: string, amount: number) => {
-    if (amount <= 0 || earnedPosts.has(postId) || postId.startsWith('demo-')) return;
+    if (amount <= 0 || earnedPosts.has(postId)) return;
 
     earnMutation.mutate({ postId, amount }, {
       onSuccess: (earned) => {
