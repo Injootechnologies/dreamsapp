@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Search, PlusCircle, Wallet, User, MessageCircle } from "lucide-react";
+import { Home, Coins, PlusCircle, Wallet, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MobileLayoutProps {
@@ -10,7 +10,7 @@ interface MobileLayoutProps {
 
 const navItems = [
   { path: "/home", icon: Home, label: "Home" },
-  { path: "/search", icon: Search, label: "Search" },
+  { path: "/earn", icon: Coins, label: "Earn" },
   { path: "/create", icon: PlusCircle, label: "Create" },
   { path: "/wallet", icon: Wallet, label: "Wallet" },
   { path: "/profile", icon: User, label: "Profile" },
@@ -22,16 +22,6 @@ export function MobileLayout({ children, hideNav = false }: MobileLayoutProps) {
 
   return (
     <div className="flex flex-col min-h-[100dvh] max-w-[480px] mx-auto bg-background relative">
-      {/* Messages floating button */}
-      {!hideNav && (
-        <button
-          onClick={() => navigate("/messages")}
-          className="fixed top-4 right-4 z-40 w-10 h-10 rounded-full bg-card/90 backdrop-blur-sm border border-border flex items-center justify-center hover:bg-secondary transition-colors"
-        >
-          <MessageCircle className="w-5 h-5 text-muted-foreground" />
-        </button>
-      )}
-
       {/* Main content */}
       <main className={cn(
         "flex-1 overflow-y-auto scrollbar-hide",

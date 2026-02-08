@@ -5,10 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { Settings, Grid, Heart, Image, Eye, Camera } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { useUserPosts } from "@/hooks/usePosts";
-import { useFollowing } from "@/hooks/useFollow";
-import { supabase } from "@/integrations/supabase/client";
+import { useDreamStore, demoPosts } from "@/lib/store";
 import { toast } from "sonner";
 
 type ProfileTab = 'posts' | 'liked';
@@ -18,86 +15,113 @@ export default function Profile() {
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { user, profile, refreshProfile } = useAuth();
-  const { data: userPosts = [] } = useUserPosts(user?.id);
-  const { data: followingUsers = new Set<string>() } = useFollowing();
+  const user = useDreamStore((state) => state.user);
+  const userPosts = useDreamStore((state) => state.userPosts);
+  const likedPosts = useDreamStore((state) => state.likedPosts);
+  const totalEarned = useDreamStore((state) => state.totalEarned);
+  const followingUsers = useDreamStore((state) => state.followingUsers);
+  const updateProfile = useDreamStore((state) => state.updateProfile);
 
-  const totalViews = userPosts.reduce((acc, post) => acc + (post.views_count || 0), 0);
+  // Get liked posts data
+  const likedPostsList = demoPosts.filter(p => likedPosts.has(p.id));
 
-  const handleProfilePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Calculate total views (demo: sum of likes * 10 for posts)
+  const totalViews = userPosts.reduce((acc, post) => acc + post.likes * 10, 0);
+
+  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
-    if (!file.type.startsWith('image/')) {
-      toast.error("Please select an image file");
-      return;
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select an image file");
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        updateProfile({ profilePhoto: e.target?.result as string });
+        toast.success("Profile photo updated!");
+      };
+      reader.readAsDataURL(file);
     }
-
-    const filePath = `${user.id}/avatar.${file.name.split('.').pop()}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true });
-    
-    if (uploadError) {
-      toast.error("Failed to upload photo");
-      return;
-    }
-
-    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-    
-    await supabase.from('profiles')
-      .update({ avatar_url: urlData.publicUrl })
-      .eq('user_id', user.id);
-    
-    await refreshProfile();
-    toast.success("Profile photo updated!");
   };
 
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleProfilePhotoChange} className="hidden" />
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleProfilePhotoChange}
+          className="hidden"
+        />
 
+        {/* Header with settings */}
         <div className="flex justify-end mb-4">
-          <button onClick={() => navigate("/settings")} className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
+          <button
+            onClick={() => navigate("/settings")}
+            className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+          >
             <Settings className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         {/* Profile Header */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center mb-6"
+        >
           <div className="relative mb-4">
-            {profile?.avatar_url ? (
+            {user?.profilePhoto ? (
               <div className="w-24 h-24 rounded-full overflow-hidden">
-                <img src={profile.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+                <img
+                  src={user.profilePhoto}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
               </div>
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary to-amber-500 flex items-center justify-center">
                 <span className="text-4xl font-bold text-primary-foreground">
-                  {profile?.username?.charAt(0).toUpperCase() || "D"}
+                  {user?.username?.charAt(0).toUpperCase() || "D"}
                 </span>
               </div>
             )}
-            <button onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center border-2 border-background">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center border-2 border-background"
+            >
               <Camera className="w-4 h-4 text-primary-foreground" />
             </button>
           </div>
 
-          <h1 className="font-display text-2xl font-bold text-foreground mb-1">@{profile?.username || "dreamer"}</h1>
-          {profile?.full_name && <p className="text-sm text-muted-foreground mb-1">{profile.full_name}</p>}
-          <p className="text-muted-foreground text-sm text-center max-w-[250px]">{profile?.bio || "DREAMS Creator"}</p>
+          <h1 className="font-display text-2xl font-bold text-foreground mb-1">
+            @{user?.username || "dreamer"}
+          </h1>
+          {user?.fullName && (
+            <p className="text-sm text-muted-foreground mb-1">{user.fullName}</p>
+          )}
+          <p className="text-muted-foreground text-sm text-center max-w-[250px]">
+            {user?.bio || "DREAMS Creator"}
+          </p>
           
+          {/* Demo badge */}
           <div className="mt-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/50">
             <span className="text-xs font-medium text-primary">Beta Account</span>
           </div>
         </motion.div>
 
         {/* Stats Row */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="flex justify-center gap-4 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="flex justify-center gap-4 mb-6"
+        >
           <div className="text-center">
-            <p className="text-xl font-bold text-foreground">{profile?.followers_count || 0}</p>
+            <p className="text-xl font-bold text-foreground">{user?.followers || 0}</p>
             <p className="text-xs text-muted-foreground">Followers</p>
           </div>
           <div className="text-center">
@@ -110,42 +134,71 @@ export default function Profile() {
           </div>
           <div className="text-center">
             <p className="text-xl font-bold text-foreground">{totalViews.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center"><Eye className="w-3 h-3" /> Views</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center">
+              <Eye className="w-3 h-3" /> Views
+            </p>
           </div>
         </motion.div>
 
         {/* Earnings Summary */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6"
+        >
           <Card variant="gradient">
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Wallet Balance</p>
-                  <p className="font-bold text-lg text-gradient-gold">₦{(profile?.wallet_balance || 0).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Demo Earnings</p>
+                  <p className="font-bold text-lg text-gradient-gold">₦{totalEarned.toLocaleString()}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => navigate("/wallet")}>View Wallet</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("/wallet")}>
+                  View Wallet
+                </Button>
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Tabs */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="flex border-b border-border mb-4">
-          <button onClick={() => setActiveTab('posts')}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex border-b border-border mb-4"
+        >
+          <button
+            onClick={() => setActiveTab('posts')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 border-b-2 transition-colors ${
-              activeTab === 'posts' ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
-            <Grid className="w-5 h-5" /><span className="text-sm font-medium">Posts</span>
+              activeTab === 'posts'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
+            }`}
+          >
+            <Grid className="w-5 h-5" />
+            <span className="text-sm font-medium">Posts</span>
           </button>
-          <button onClick={() => setActiveTab('liked')}
+          <button
+            onClick={() => setActiveTab('liked')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 border-b-2 transition-colors ${
-              activeTab === 'liked' ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
-            <Heart className="w-5 h-5" /><span className="text-sm font-medium">Liked</span>
+              activeTab === 'liked'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
+            }`}
+          >
+            <Heart className="w-5 h-5" />
+            <span className="text-sm font-medium">Liked</span>
           </button>
         </motion.div>
 
         {/* Content Grid */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
           {activeTab === 'posts' ? (
             userPosts.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
@@ -153,34 +206,74 @@ export default function Profile() {
                   <Image className="w-8 h-8 text-muted-foreground" />
                 </div>
                 <p className="text-foreground font-medium mb-1">You haven't posted yet</p>
-                <p className="text-sm text-muted-foreground mb-4">Share your first content!</p>
-                <Button variant="gold" onClick={() => navigate("/create")}>Create Post</Button>
+                <p className="text-sm text-muted-foreground mb-4">Share your first image!</p>
+                <Button
+                  variant="gold"
+                  onClick={() => navigate("/create")}
+                >
+                  Create Post
+                </Button>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1">
                 {userPosts.map((post) => (
-                  <div key={post.id} className="aspect-square bg-secondary rounded-lg overflow-hidden relative">
-                    {post.media_type === 'video' ? (
-                      <video src={post.media_url} className="w-full h-full object-cover" muted />
-                    ) : (
-                      <img src={post.media_url} alt={post.caption} className="w-full h-full object-cover" />
-                    )}
+                  <div
+                    key={post.id}
+                    className="aspect-square bg-secondary rounded-lg overflow-hidden relative"
+                  >
+                    <img
+                      src={post.imageUrl}
+                      alt={post.caption}
+                      className="w-full h-full object-cover"
+                    />
                     <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1.5 py-0.5 rounded">
-                      <Heart className="w-3 h-3" /><span>{post.likes_count}</span>
+                      <Heart className="w-3 h-3" />
+                      <span>{post.likes}</span>
                     </div>
+                    {post.eligibleAmount > 0 && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded-full bg-primary text-[8px] text-primary-foreground font-medium">
+                        ₦{post.eligibleAmount}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-                <Heart className="w-8 h-8 text-muted-foreground" />
+            likedPostsList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
+                  <Heart className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-foreground font-medium mb-1">No liked posts yet</p>
+                <p className="text-sm text-muted-foreground mb-4">Posts you like will appear here</p>
+                <Button
+                  variant="gold"
+                  onClick={() => navigate("/home")}
+                >
+                  Browse Posts
+                </Button>
               </div>
-              <p className="text-foreground font-medium mb-1">No liked posts yet</p>
-              <p className="text-sm text-muted-foreground mb-4">Posts you like will appear here</p>
-              <Button variant="gold" onClick={() => navigate("/home")}>Browse Posts</Button>
-            </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1">
+                {likedPostsList.map((post) => (
+                  <div
+                    key={post.id}
+                    className="aspect-square bg-secondary rounded-lg overflow-hidden relative"
+                  >
+                    <img
+                      src={post.imageUrl}
+                      alt={post.caption}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-white text-xs bg-black/50 px-1.5 py-0.5 rounded">
+                      <Heart className="w-3 h-3" />
+                      <span>{post.likes.toLocaleString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </motion.div>
       </div>

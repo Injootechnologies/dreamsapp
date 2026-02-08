@@ -82,7 +82,7 @@ export default function Landing() {
             variant="gold"
             size="xl"
             className="w-full"
-            onClick={() => navigate("/auth")}
+            onClick={() => navigate("/signup")}
           >
             Get Started
           </Button>

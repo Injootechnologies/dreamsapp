@@ -6,73 +6,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 import { ArrowLeft, User, Lock, LogOut, ChevronRight, Save } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useDreamStore } from "@/lib/store";
 import { toast } from "sonner";
-import { usernameSchema, bioSchema } from "@/lib/validation";
-import { z } from "zod";
 
 type SettingsView = 'main' | 'edit-profile' | 'change-password';
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, profile, signOut, refreshProfile } = useAuth();
   const [view, setView] = useState<SettingsView>('main');
   
-  const [username, setUsername] = useState(profile?.username || '');
-  const [bio, setBio] = useState(profile?.bio || '');
+  const user = useDreamStore((state) => state.user);
+  const updateProfile = useDreamStore((state) => state.updateProfile);
+  const logout = useDreamStore((state) => state.logout);
   
+  // Edit profile state
+  const [username, setUsername] = useState(user?.username || '');
+  const [bio, setBio] = useState(user?.bio || '');
+  const [email, setEmail] = useState(user?.email || '');
+  
+  // Change password state (UI only)
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleLogout = async () => {
-    await signOut();
+  const handleLogout = () => {
+    logout();
     navigate("/");
   };
 
-  const handleSaveProfile = async () => {
-    if (!user) return;
-
-    // Validate inputs with zod
-    try {
-      usernameSchema.parse(username);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast.error(err.errors[0].message);
-        return;
-      }
-    }
-
-    try {
-      bioSchema.parse(bio);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast.error(err.errors[0].message);
-        return;
-      }
-    }
-    
-    const { error } = await supabase
-      .from('profiles')
-      .update({ username: username.trim(), bio: bio.trim() })
-      .eq('user_id', user.id);
-    
-    if (error) {
-      if (error.message?.includes('duplicate') || error.code === '23505') {
-        toast.error("Username is already taken");
-      } else {
-        toast.error("Failed to update profile");
-      }
-      return;
-    }
-    
-    await refreshProfile();
+  const handleSaveProfile = () => {
+    updateProfile({ username, bio, email });
     toast.success("Profile updated!");
     setView('main');
   };
 
-  const handleChangePassword = async () => {
+  const handleChangePassword = () => {
     if (newPassword !== confirmPassword) {
       toast.error("Passwords don't match");
       return;
@@ -81,15 +49,7 @@ export default function Settings() {
       toast.error("Password must be at least 6 characters");
       return;
     }
-    
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    
-    if (error) {
-      toast.error(error.message || "Failed to update password");
-      return;
-    }
-    
-    toast.success("Password changed successfully!");
+    toast.success("Password changed! (simulated)");
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
@@ -100,23 +60,69 @@ export default function Settings() {
     return (
       <MobileLayout hideNav>
         <div className="px-4 py-6 safe-top">
-          <button onClick={() => setView('main')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6">
-            <ArrowLeft className="w-5 h-5" /><span>Back</span>
+          <button
+            onClick={() => setView('main')}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back</span>
           </button>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <h1 className="font-display text-2xl font-bold text-foreground mb-6">Edit Profile</h1>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="font-display text-2xl font-bold text-foreground mb-6">
+              Edit Profile
+            </h1>
+
             <div className="space-y-4 mb-8">
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Username</label>
-                <Input value={username} onChange={(e) => setUsername(e.target.value.replace(/\s/g, '_'))} placeholder="Enter username" className="h-12" maxLength={30} />
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Username
+                </label>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="h-12"
+                />
               </div>
+              
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Bio</label>
-                <Input value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself" className="h-12" maxLength={500} />
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Bio
+                </label>
+                <Input
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Tell us about yourself"
+                  className="h-12"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Email
+                </label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  className="h-12"
+                />
               </div>
             </div>
-            <Button variant="gold" size="xl" className="w-full" onClick={handleSaveProfile}>
-              <Save className="w-5 h-5" /> Save Changes
+
+            <Button
+              variant="gold"
+              size="xl"
+              className="w-full"
+              onClick={handleSaveProfile}
+            >
+              <Save className="w-5 h-5" />
+              Save Changes
             </Button>
           </motion.div>
         </div>
@@ -128,24 +134,77 @@ export default function Settings() {
     return (
       <MobileLayout hideNav>
         <div className="px-4 py-6 safe-top">
-          <button onClick={() => setView('main')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6">
-            <ArrowLeft className="w-5 h-5" /><span>Back</span>
+          <button
+            onClick={() => setView('main')}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Back</span>
           </button>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <h1 className="font-display text-2xl font-bold text-foreground mb-6">Change Password</h1>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h1 className="font-display text-2xl font-bold text-foreground mb-6">
+              Change Password
+            </h1>
+
             <div className="space-y-4 mb-8">
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">New Password</label>
-                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" className="h-12" />
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Current Password
+                </label>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  className="h-12"
+                />
               </div>
+              
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">Confirm New Password</label>
-                <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" className="h-12" />
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  New Password
+                </label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="h-12"
+                />
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  Confirm New Password
+                </label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="h-12"
+                />
               </div>
             </div>
-            <Button variant="gold" size="xl" className="w-full" onClick={handleChangePassword} disabled={!newPassword || !confirmPassword}>
-              <Lock className="w-5 h-5" /> Update Password
+
+            <Button
+              variant="gold"
+              size="xl"
+              className="w-full"
+              onClick={handleChangePassword}
+              disabled={!currentPassword || !newPassword || !confirmPassword}
+            >
+              <Lock className="w-5 h-5" />
+              Update Password
             </Button>
+            
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Password changes are simulated in beta
+            </p>
           </motion.div>
         </div>
       </MobileLayout>
@@ -155,31 +214,63 @@ export default function Settings() {
   return (
     <MobileLayout>
       <div className="px-4 py-6 safe-top">
-        <button onClick={() => navigate("/profile")} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6">
-          <ArrowLeft className="w-5 h-5" /><span>Back</span>
+        <button
+          onClick={() => navigate("/profile")}
+          className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>Back</span>
         </button>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-          <h1 className="font-display text-2xl font-bold text-foreground">Settings</h1>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            Settings
+          </h1>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
+        {/* Beta badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-6"
+        >
           <div className="p-4 rounded-xl bg-primary/10 border border-primary/30">
             <p className="text-sm text-primary font-medium">🧪 Beta Version</p>
-            <p className="text-xs text-muted-foreground mt-1">Demo content • Manual payouts • Economy subject to change</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Demo content • Simulated payouts • Economy subject to change
+            </p>
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-2">
+        {/* Menu Items */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-2"
+        >
           <Card variant="gradient">
             <CardContent className="p-0">
-              <button onClick={() => setView('edit-profile')} className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
+              <button
+                onClick={() => setView('edit-profile')}
+                className="w-full flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-muted-foreground" />
                   <span className="font-medium text-foreground">Edit Profile</span>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </button>
-              <button onClick={() => setView('change-password')} className="w-full flex items-center justify-between p-4 border-t border-border hover:bg-secondary/50 transition-colors">
+              
+              <button
+                onClick={() => setView('change-password')}
+                className="w-full flex items-center justify-between p-4 border-t border-border hover:bg-secondary/50 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <Lock className="w-5 h-5 text-muted-foreground" />
                   <span className="font-medium text-foreground">Change Password</span>
@@ -191,7 +282,10 @@ export default function Settings() {
 
           <Card variant="default">
             <CardContent className="p-0">
-              <button onClick={handleLogout} className="w-full flex items-center justify-between p-4 text-destructive hover:bg-destructive/10 transition-colors">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-between p-4 text-destructive hover:bg-destructive/10 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <LogOut className="w-5 h-5" />
                   <span className="font-medium">Log Out</span>
@@ -202,10 +296,18 @@ export default function Settings() {
           </Card>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="mt-8 text-center">
+        {/* App Info */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 text-center"
+        >
           <p className="text-gradient-gold font-display font-bold text-lg mb-1">Dream$</p>
-          <p className="text-xs text-muted-foreground">Version 2.0.0 (Beta)</p>
-          <p className="text-xs text-muted-foreground mt-2">Made with ❤️ in Nigeria</p>
+          <p className="text-xs text-muted-foreground">Version 1.0.0 (Beta)</p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Made with ❤️ in Nigeria
+          </p>
         </motion.div>
       </div>
     </MobileLayout>
