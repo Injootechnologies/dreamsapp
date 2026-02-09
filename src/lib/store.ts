@@ -27,6 +27,10 @@ export interface Post {
   saves: number;
   shares: number;
   imageUrl: string;
+  videoUrl?: string;
+  mediaType?: 'image' | 'video';
+  trimStart?: number;
+  trimEnd?: number;
   category: 'foryou' | 'following' | 'explore';
   createdAt: Date;
   eligibleAmount: number; // 0 = not eligible, 10/15/20 = eligible amounts

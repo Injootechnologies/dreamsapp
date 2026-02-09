@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Bookmark, Share2, Send, X, Copy, Check, Coins, UserPlus, UserCheck } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, X, Copy, Check, Coins, UserPlus, UserCheck, Search } from "lucide-react";
 import { demoPosts, useDreamStore, Post } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { CommentSheet } from "@/components/CommentSheet";
 
 type FeedTab = 'foryou' | 'following' | 'explore';
 
@@ -25,7 +26,9 @@ export default function HomeFeed() {
   const [activeTab, setActiveTab] = useState<FeedTab>('foryou');
   const [showCommentModal, setShowCommentModal] = useState<string | null>(null);
   const [showShareModal, setShowShareModal] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState("");
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
   const [copiedLink, setCopiedLink] = useState(false);
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
@@ -44,7 +47,7 @@ export default function HomeFeed() {
   const toggleLike = useDreamStore((state) => state.toggleLike);
   const toggleSave = useDreamStore((state) => state.toggleSave);
   const toggleFollow = useDreamStore((state) => state.toggleFollow);
-  const addComment = useDreamStore((state) => state.addComment);
+  
   const getPostComments = useDreamStore((state) => state.getPostComments);
   const earnFromPost = useDreamStore((state) => state.earnFromPost);
   const hasViewedPost = useDreamStore((state) => state.hasViewedPost);
@@ -160,13 +163,7 @@ export default function HomeFeed() {
     toast.success(followingUsers.has(creatorId) ? "Unfollowed" : "Following!");
   };
 
-  const handleComment = (postId: string) => {
-    if (!commentText.trim()) return;
-    const baseId = postId.split('-')[0];
-    addComment(baseId, commentText);
-    setCommentText("");
-    toast.success("Comment added!");
-  };
+  // handleComment is now in CommentSheet component
 
   const handleCopyLink = (postId: string) => {
     const baseId = postId.split('-')[0];
@@ -193,34 +190,75 @@ export default function HomeFeed() {
     <MobileLayout>
       {/* Top Header */}
       <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-b from-background/95 to-transparent pt-4 pb-8 px-4">
-        <div className="max-w-[480px] mx-auto flex justify-between items-center">
-          {/* Logo */}
-          <div className="px-3 py-1.5 rounded-full bg-card/90 backdrop-blur-sm border border-border">
-            <span className="text-sm font-bold text-gradient-gold">DREAMS</span>
-          </div>
-          
-          {/* Tabs */}
-          <div className="flex gap-1 bg-card/90 backdrop-blur-sm rounded-full p-1 border border-border">
-            {tabs.map((tab) => (
+        <div className="max-w-[480px] mx-auto">
+          <div className="flex justify-between items-center">
+            {/* Logo */}
+            <div className="px-3 py-1.5 rounded-full bg-card/90 backdrop-blur-sm border border-border">
+              <span className="text-sm font-bold text-gradient-gold">DREAMS</span>
+            </div>
+            
+            {/* Tabs */}
+            <div className="flex gap-1 bg-card/90 backdrop-blur-sm rounded-full p-1 border border-border">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    activeTab === tab.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* Search + Balance */}
+            <div className="flex items-center gap-1.5">
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                  activeTab === tab.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                onClick={() => setShowSearch(!showSearch)}
+                className="p-1.5 rounded-full bg-card/90 backdrop-blur-sm border border-border"
               >
-                {tab.label}
+                <Search className="w-4 h-4 text-muted-foreground" />
               </button>
-            ))}
+              <div className="px-2 py-1 rounded-full bg-primary/20 border border-primary/50 flex items-center gap-1">
+                <Coins className="w-3 h-3 text-primary" />
+                <span className="text-[10px] font-medium text-primary">₦{availableBalance}</span>
+              </div>
+            </div>
           </div>
-          
-          {/* Balance badge */}
-          <div className="px-2 py-1 rounded-full bg-primary/20 border border-primary/50 flex items-center gap-1">
-            <Coins className="w-3 h-3 text-primary" />
-            <span className="text-[10px] font-medium text-primary">₦{availableBalance}</span>
-          </div>
+
+          {/* Search bar - slides down */}
+          <AnimatePresence>
+            {showSearch && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search creators, captions..."
+                      className="pl-9 h-10 bg-card/90 backdrop-blur-sm border-border"
+                      autoFocus
+                    />
+                    {searchQuery && (
+                      <button onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <X className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -267,7 +305,10 @@ export default function HomeFeed() {
           className="h-[100dvh] overflow-y-scroll snap-y snap-mandatory scrollbar-hide"
           style={{ scrollSnapType: 'y mandatory' }}
         >
-          {posts.map((post, index) => {
+          {(searchQuery
+            ? posts.filter(p => p.caption.toLowerCase().includes(searchQuery.toLowerCase()) || p.creator.toLowerCase().includes(searchQuery.toLowerCase()))
+            : posts
+          ).map((post, index) => {
             const baseId = post.id.split('-')[0];
             const isLiked = likedPosts.has(baseId);
             const isSaved = savedPosts.has(baseId);
@@ -282,13 +323,24 @@ export default function HomeFeed() {
                 style={{ scrollSnapAlign: 'start' }}
                 onClick={() => handleDoubleTap(post.id)}
               >
-                {/* Image */}
-                <img
-                  src={post.imageUrl}
-                  alt={post.caption}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                />
+                {/* Media */}
+                {post.videoUrl || post.mediaType === 'video' ? (
+                  <video
+                    src={post.videoUrl}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : (
+                  <img
+                    src={post.imageUrl}
+                    alt={post.caption}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                )}
                 
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
 
@@ -470,91 +522,12 @@ export default function HomeFeed() {
         </div>
       )}
 
-      {/* Comment Modal */}
-      <AnimatePresence>
-        {showCommentModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm"
-            onClick={() => setShowCommentModal(null)}
-          >
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              className="absolute bottom-0 left-0 right-0 bg-card rounded-t-3xl p-6 max-h-[70vh] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-display text-lg font-bold text-foreground">Comments</h3>
-                <button onClick={() => setShowCommentModal(null)}>
-                  <X className="w-6 h-6 text-muted-foreground" />
-                </button>
-              </div>
-
-              {/* Comments list */}
-              <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-                {(() => {
-                  const baseId = showCommentModal.split('-')[0];
-                  const comments = getPostComments(baseId);
-                  const post = posts.find(p => p.id === showCommentModal);
-                  const allComments = [...(post?.comments || []), ...comments];
-                  
-                  if (allComments.length === 0) {
-                    return (
-                      <p className="text-center text-muted-foreground py-8">
-                        No comments yet. Be the first!
-                      </p>
-                    );
-                  }
-                  
-                  return allComments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-bold">
-                        {comment.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm">
-                          <span className="font-semibold text-foreground">{comment.username}</span>{" "}
-                          <span className="text-foreground/80">{comment.text}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(comment.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-
-              {/* Add comment */}
-              <div className="flex gap-2 border-t border-border pt-4">
-                <Input
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Add a comment..."
-                  className="flex-1"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && showCommentModal) {
-                      handleComment(showCommentModal);
-                    }
-                  }}
-                />
-                <Button 
-                  variant="gold" 
-                  size="icon"
-                  onClick={() => showCommentModal && handleComment(showCommentModal)}
-                  disabled={!commentText.trim()}
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Comment Sheet - TikTok style overlay */}
+      <CommentSheet
+        postId={showCommentModal}
+        existingComments={showCommentModal ? posts.find(p => p.id === showCommentModal)?.comments : []}
+        onClose={() => setShowCommentModal(null)}
+      />
 
       {/* Share Modal */}
       <AnimatePresence>
